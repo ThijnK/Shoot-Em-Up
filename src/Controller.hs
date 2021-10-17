@@ -25,7 +25,9 @@ input :: Event -> GameState -> IO GameState
 input e gstate = return (inputKey e gstate)
 
 inputKey :: Event -> GameState -> GameState
-inputKey (EventKey (Char c) _ _ _) gstate
-  = -- If the user presses a character key, show that one
-    gstate { infoToShow = ShowAChar c }
-inputKey _ gstate = gstate -- Otherwise keep the same
+inputKey (EventKey (Char c) _ _ _) gstate = movePlayer (world gstate) where
+  movePlayer (World (x, y)) = case c of
+    'w' -> gstate { world = World (x, y + 10)}
+    's' -> gstate { world = World (x, y - 10)}
+    _   -> gstate
+inputKey _ gstate = gstate

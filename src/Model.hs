@@ -2,29 +2,29 @@
 --   which represent the state of the game
 module Model where
 
-data InfoToShow = ShowNothing
-                | ShowANumber Int
-                | ShowAChar   Char
+newtype World = World {
+  ship :: Position
+}
 
 nO_SECS_BETWEEN_CYCLES :: Float
 nO_SECS_BETWEEN_CYCLES = 5
 
 data GameState = GameState {
-                infoToShow  :: InfoToShow,
-                score       :: Int,
-                paused      :: Bool,
-                timeElapsed :: Float,
-                player      :: Player,
-                enemies     :: [Enemy],
-                obstacles   :: [Obstacle],
-                bullets     :: [Bullet]
-                }
+  world       :: World,
+  score       :: Int,
+  paused      :: Bool,
+  timeElapsed :: Float,
+  player      :: Player,
+  enemies     :: [Enemy],
+  obstacles   :: [Obstacle],
+  bullets     :: [Bullet]
+}
 
 initialState :: GameState
 initialState =
     GameState
         { 
-            infoToShow = ShowNothing,
+            world = World { ship = (50,0)},
             score = 0,
             paused = False,
             timeElapsed = 0.0,
@@ -36,7 +36,7 @@ initialState =
 
 type Health = Int
 
-type Position = (Int, Int) -- x, y
+type Position = (Float, Float) -- x, y
 
 type HitBox = (Int, Int) -- width, height
 
