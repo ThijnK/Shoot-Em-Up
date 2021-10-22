@@ -2,36 +2,32 @@
 --   which represent the state of the game
 module Model where
 
-newtype World = World {
-  ship :: Position
-}
-
 nO_SECS_BETWEEN_CYCLES :: Float
 nO_SECS_BETWEEN_CYCLES = 5
 
 data GameState = GameState {
-  world       :: World,
   score       :: Int,
   paused      :: Bool,
   timeElapsed :: Float,
   player      :: Player,
   enemies     :: [Enemy],
   obstacles   :: [Obstacle],
-  bullets     :: [Bullet]
+  bullets     :: [Bullet],
+  downKeys        :: [Char]
 }
 
 initialState :: GameState
 initialState =
     GameState
-        { 
-            world = World { ship = (50,0)},
+        {
             score = 0,
             paused = False,
             timeElapsed = 0.0,
-            player = undefined,
+            player = Player 100 (50,0) 5 1 (10,10),
             enemies = [],
             obstacles = [],
-            bullets = []
+            bullets = [],
+            downKeys = []
         }
 
 type Health = Int

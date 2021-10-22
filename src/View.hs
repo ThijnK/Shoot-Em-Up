@@ -9,5 +9,5 @@ view :: GameState -> IO Picture
 view = return . viewPure
 
 viewPure :: GameState -> Picture
-viewPure gstate = case ship (world gstate) of
-  (x,y)   -> translate x y (color blue (circle 10))
+viewPure gstate = movePlayer (player gstate) where
+  movePlayer (Player _ (x,y) _ _ _) = translate x y (color blue (circle 10))
