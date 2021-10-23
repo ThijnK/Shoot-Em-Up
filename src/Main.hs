@@ -10,10 +10,10 @@ import Graphics.Gloss.Interface.IO.Game
 
 main :: IO ()
 main = 
-    do 
-        playerImg <- loadBMP "assets/Blue-5.bmp"
-        playerBullet <- loadBMP "assets/laser.bmp"
-        let sprites = Sprites playerImg playerBullet
+    do  playerSprite   <- loadBMP "assets/player.bmp"
+        bulletSprite   <- loadBMP "assets/laser.bmp"
+        obstacleSprite <- loadBMP "assets/obstacle.bmp"
+        let sprites = Sprites playerSprite bulletSprite obstacleSprite
         playIO (InWindow "Shoot-Em-Up by Thijn Kroon & Mike Wu" (1000, 600) (0, 0)) -- Or FullScreen
               black            -- Background color
               60               -- Frames per second
@@ -21,5 +21,3 @@ main =
               view             -- View function
               input            -- Event function
               step             -- Step function
-            
--- data type for all images...

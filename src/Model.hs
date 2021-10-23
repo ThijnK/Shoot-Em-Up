@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 -- | This module contains the data types
 --   which represent the state of the game
 module Model where
@@ -5,80 +6,82 @@ module Model where
 import Graphics.Gloss
 import Graphics.Gloss.Data.Bitmap
 import Graphics.Gloss.Geometry.Line ( segClearsBox )
+import Data.Maybe
 
 data GameState = GameState {
-  score        :: Int,
-  paused       :: Bool,
-  timeElapsed  :: Float,
-  player       :: Player,
-  enemies      :: [Enemy],
-  obstacles    :: [Obstacle],
-  bullets      :: [Bullet],
-  downKeys     :: [Char],
-  bulletSprite :: Picture
+  score         :: Int,
+  paused        :: Bool,
+  timeElapsed   :: Float,
+  player        :: Player,
+  obstacles     :: [Obstacle],
+  playerBullets :: [PlayerBullet],
+  downKeys      :: [Char],
+  sprites       :: Sprites
 }
 
 initialState :: Sprites -> GameState
-initialState (Sprites playerSprite bulletSprite) = GameState {
-  score        = 0,
-  paused       = False,
-  timeElapsed  = 0.0,
-  player       = Player playerSprite 100 (-100,0) 5 1 (13,8),
-  enemies      = [],
-  obstacles    = [],
-  bullets      = [],
-  downKeys     = [],
-  bulletSprite = bulletSprite
+initialState sprites = GameState {
+  score         = 0,
+  paused        = False,
+  timeElapsed   = 0.0,
+  player        = Player (-100,0) 100 5 1 (13,8),
+  obstacles     = [],
+  playerBullets = [],
+  downKeys      = [],
+  sprites       = sprites
 }
 
-type Health   = Int
-type Pos      = Point -- x, y
-type HitBox   = Point -- width, height
-type FireRate = Float
-type Speed    = Float
-type Damage   = Int
+data Sprites  = Sprites {
+  playerSprite   :: Picture,
+  pBulletSprite  :: Picture,
+  obstacleSprite :: Picture
+}
 
-data BulletType = Friendly | Hostile
-data PowerUpType
-  = FireRateIncrease
-  | HealthIncrease
-  | SpeedIncrease -- Increases movement speed
-  | Invincibility
-data Sprites  = Sprites Picture Picture
+data Player = Player {
+  playerPos      :: Point,
+  playerHp       :: Int,
+  playerSpeed    :: Float,
+  playerFr       :: Float,
+  playerHbox     :: Point
+}
 
--- data Player = Player {
---   sprite   :: Picture,
---   pos      :: Point,
---   hp       :: Int,
---   speed    :: Float,
---   fireRate :: Float,
---   hitbox   :: Point
--- }
--- data Enemy = Enemy {
---   posE    :: Point,
---   hpE     :: Int,
---   hitboxE :: Point
--- }
--- data Obstacle = Obstacle {
---   posO :: Point,
---   hpO  :: Int,
---   hitboxO :: Point,
--- }
-data Player   = Player Picture Health Pos Speed FireRate HitBox
-data Enemy    = Enemy Health Pos HitBox
-data Obstacle = Obstacle Health Pos HitBox
-data Bullet   = Bullet Picture Pos Damage Speed HitBox BulletType
-data PowerUp  = PowerUp PowerUpType Pos HitBox
+data PlayerBullet = PlayerBullet {
+  pbPos   :: Point,
+  pbDmg   :: Int,
+  pbSpeed :: Float,
+  pbHbox  :: Point
+}
+
+data Obstacle = Obstacle {
+  obstaclePos  :: Point,
+  obstacleHp   :: Int,
+  obstacleHbox :: Point
+}
+
+-- Enemy data type
+-- Various bullet types
+-- Power up data types
+  -- data PowerUpType
+  --   = FireRateIncrease
+  --   | HealthIncrease
+  --   | SpeedIncrease -- Increases movement speed
+  --   | Invincibility
 
 -- | Drawable type class
 class Drawable a where
-  draw :: a -> Picture
+  draw :: Picture -> a -> Picture
 
 instance Drawable Player where
-  draw (Player sprite _ (x,y) _ _ _) = pictures [translate x y sprite, color red (line [(x-13,y-8),(x+13,y-8),(x+13,y+8),(x-13,y+8),(x-13,y-8)])]
+  draw sprite p = translate x y sprite
+    where (x,y) = playerPos p
 
-instance Drawable Bullet where
-  draw (Bullet sprite (x,y) _ _ _ _) = translate x y sprite
+instance Drawable PlayerBullet where
+  draw sprite b = translate x y sprite
+    where (x,y) = pbPos b
+
+instance Drawable Obstacle where
+  draw sprite o = translate x y sprite
+    where (x,y) = obstaclePos o
 
 -- | Collidable type class
 class Collideable a where
@@ -90,7 +93,36 @@ class Collideable a where
       ll = (xb - wb, yb - hb)
       ur = (xb + wb, yb + hb)
       ((xb,yb), (wb,hb)) = getPosHitBox b
-  getPosHitBox :: a -> (Pos, HitBox)
+  getPosHitBox :: a -> (Point, Point)
 
 instance Collideable Player where
-  getPosHitBox (Player _ _ p _ _ h) = (p,h)
+  getPosHitBox p = (playerPos p, playerHbox p)
+
+instance Collideable PlayerBullet where
+  getPosHitBox pb = (pbPos pb, pbHbox pb)
+
+instance Collideable Obstacle where
+  getPosHitBox o = (obstaclePos o, obstacleHbox o)
+
+-- | Moveable type class and instances
+class Moveable a where
+  move :: GameState -> a -> Maybe a
+
+instance Moveable a => Moveable [a] where
+  move gstate = Just . mapMaybe (move gstate)
+
+instance Moveable Player where
+  move GameState{downKeys} player@Player{playerPos = (x,y), playerSpeed} = Just player {playerPos = (x + mx, y + my)} where
+    (mx,my) = foldr checkKey (0,0) downKeys -- Move based on the keys currently being held down
+    checkKey :: Char -> (Float, Float) -> (Float, Float)
+    checkKey 's' (x,y) = (x, y - playerSpeed)
+    checkKey 'a' (x,y) = (x - playerSpeed, y)
+    checkKey 'w' (x,y) = (x, y + playerSpeed)
+    checkKey 'd' (x,y) = (x + playerSpeed, y)
+    checkKey _   acc   = acc
+
+instance Moveable PlayerBullet where
+  move _ pb@PlayerBullet{pbPos = (x,y), pbSpeed}
+    | nx < 550 = Just pb {pbPos = (nx, y)} -- Delete the bullet when it's off the screen
+    | otherwise = Nothing
+    where nx = x + pbSpeed
