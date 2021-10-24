@@ -15,7 +15,8 @@ import Model
 
 -- | Handle one iteration of the game
 step :: Float -> GameState -> IO GameState
-step secs gstate@GameState{player, playerBullets, downKeys} = return gstate {player = p, playerBullets = pbs} where
+step secs gstate@GameState{player, playerBullets, downKeys} = return gstate' where
+  gstate' = checkCollision (gstate{player = p, playerBullets = pbs}) pbs
   (Just p)   = move gstate player
   (Just pbs) = move gstate playerBullets
 
@@ -40,4 +41,4 @@ fireBullet gstate@GameState{player, playerBullets} = gstate {playerBullets = fri
   origin = playerPos player -- take the player's position as the origin of the bullet
 
 friendlyBullet :: Point -> PlayerBullet
-friendlyBullet origin = PlayerBullet origin 5 50 (10,2)
+friendlyBullet origin = PlayerBullet origin 10 50 (10,2)

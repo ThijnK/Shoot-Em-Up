@@ -11,11 +11,15 @@ view :: GameState -> IO Picture
 view = return . viewPure
 
 viewPure :: GameState -> Picture
-viewPure gstate@GameState{player, playerBullets, sprites} = pictures (map (draw pbSprite) playerBullets
-                                                                      ++ [draw pSprite player]
-                                                                      ++ [temp pbSprite (PlayerBullet (0,0) 100 1 (10,2))]) where
+viewPure gstate@GameState{player, playerBullets, obstacles, sprites} = 
+    pictures (map (draw pbSprite) playerBullets
+              ++ [draw pSprite player]
+              ++ map (draw oSprite) obstacles) where
     pSprite = playerSprite sprites
     pbSprite = pBulletSprite sprites
+    oSprite = obstacleSprite sprites
+{-
+              ++ [temp oSprite (Obstacle (0,0) 100 (10,10))]-}
 
 -- temporary for testing
 temp :: Collideable a => Picture -> a -> Picture
