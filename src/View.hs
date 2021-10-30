@@ -12,9 +12,9 @@ view = return . viewPure
 
 viewPure :: GameState -> Picture
 viewPure gstate@GameState{player, playerBullets, obstacles, sprites} = 
-    pictures (map (draw pbSprite) playerBullets
-              ++ [draw pSprite player]
-              ++ map (draw oSprite) obstacles) where
+    pictures (map (toPicture sprites) playerBullets
+              ++ [toPicture sprites player]
+              ++ map (toPicture sprites) obstacles) where
     pSprite = playerSprite sprites
     pbSprite = pBulletSprite sprites
     oSprite = obstacleSprite sprites
@@ -22,6 +22,7 @@ viewPure gstate@GameState{player, playerBullets, obstacles, sprites} =
               ++ [temp oSprite (Obstacle (0,0) 100 (10,10))]-}
 
 -- temporary for testing
-temp :: Collideable a => Picture -> a -> Picture
+temp :: (Positionable a, Collideable a) => Picture -> a -> Picture
 temp sprite a = pictures [translate x y sprite, color red (line [(x-w,y-h),(x+w,y-h),(x+w,y+h),(x-w,y+h),(x-w,y-h)])] where
-    ((x,y),(w,h)) = getPosHitBox a
+    (x,y) = getHitbox a
+    (w,h) = getPosition a

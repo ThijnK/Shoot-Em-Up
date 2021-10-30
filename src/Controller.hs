@@ -11,7 +11,8 @@ import System.Random
 import Data.List
 import Data.Char
 import Data.Maybe
-import Model
+
+-- secs * speed to normalize
 
 -- | Handle one iteration of the game
 step :: Float -> GameState -> IO GameState
@@ -41,4 +42,15 @@ fireBullet gstate@GameState{player, playerBullets} = gstate {playerBullets = fri
   origin = playerPos player -- take the player's position as the origin of the bullet
 
 friendlyBullet :: Point -> PlayerBullet
-friendlyBullet origin = PlayerBullet origin 10 50 (10,2)
+friendlyBullet origin = PlayerBullet origin 0 10 50 (10,2)
+
+
+movePlayer :: Player -> [Char] -> Player
+movePlayer player@Player{playerPos = (x,y), playerSpeed} downKeys = player {playerPos = (clamp (x + mx) (-500,500), clamp (y + my) (-300,300))} where
+    (mx,my) = foldr checkKey (0,0) downKeys -- Move based on the keys currently being held down
+    checkKey :: Char -> (Float, Float) -> (Float, Float)
+    checkKey 's' (x,y) = (x, y - playerSpeed)
+    checkKey 'a' (x,y) = (x - playerSpeed, y)
+    checkKey 'w' (x,y) = (x, y + playerSpeed)
+    checkKey 'd' (x,y) = (x + playerSpeed, y)
+    checkKey _   acc   = acc

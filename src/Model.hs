@@ -45,27 +45,37 @@ data Sprites  = Sprites {
 }
 
 data Player = Player {
-  playerPos      :: Point,
-  playerHp       :: Int,
-  playerSpeed    :: Float,
-  playerFr       :: Float,
-  playerHbox     :: Point
+  playerPos    :: Point,
+  playerOrient :: Float,
+  playerHp     :: Int,
+  playerSpeed  :: Float,
+  playerFr     :: Float,
+  playerHbox   :: Point
 }
 
 data PlayerBullet = PlayerBullet {
-  pbPos   :: Point,
-  pbDmg   :: Int,
-  pbSpeed :: Float,
-  pbHbox  :: Point
-}
-  deriving Eq
+  pbPos        :: Point,
+  pbOrient     :: Float,
+  pbDmg        :: Int,
+  pbSpeed      :: Float,
+  pbHbox       :: Point
+} deriving Eq
+
+-- data Enemy = Enemy {
+--   enemyPos     :: Point,
+--   enemyOrient :: Float,
+--   enemyHp     :: Int,
+--   enemySpeed  :: Float,
+--   enemyFr     :: Float,
+--   enemyHbox   :: Point
+-- }
 
 data Obstacle = Obstacle {
-  obstaclePos  :: Point,
-  obstacleHp   :: Int,
-  obstacleHbox :: Point
-}
-  deriving Eq
+  obstaclePos    :: Point,
+  obstacleOrient :: Float,
+  obstacleHp     :: Int,
+  obstacleHbox   :: Point
+} deriving Eq
 
 -- Enemy data type
 -- Various bullet types
@@ -76,22 +86,105 @@ data Obstacle = Obstacle {
   --   | SpeedIncrease -- Increases movement speed
   --   | Invincibility
 
+
+-- | Positionable type class
+class Positionable a where
+  getPosition :: a -> Point
+  getOrientation :: a -> Float
+  changePosition :: a -> Point -> a
+  -- changeOrientation :: a -> Float -> a
+
+instance Positionable Player where
+  getPosition Player{playerPos} = playerPos
+  getOrientation Player{playerOrient} = playerOrient
+  changePosition p newPos = p{playerPos = newPos}
+
+instance Positionable PlayerBullet where
+  getPosition PlayerBullet{pbPos} = pbPos
+  getOrientation PlayerBullet{pbOrient} = pbOrient
+  changePosition pb newPos = pb{pbPos = newPos}
+
+instance Positionable Obstacle where
+  getPosition Obstacle{obstaclePos} = obstaclePos
+  getOrientation Obstacle{obstacleOrient} = obstacleOrient
+  changePosition o newPos = o{obstaclePos = newPos}
+
 -- | Drawable type class
-class Drawable a where
-  draw :: Picture -> a -> Picture
+class Positionable a => Drawable a where
+  getSprite :: Sprites -> a -> Picture
+  toPicture :: Sprites -> a -> Picture
+  toPicture sprites x = draw (getOrientation x) (getPosition x) (getSprite sprites x)
 
 instance Drawable Player where
-  draw sprite p = translate x y sprite
-    where (x,y) = playerPos p
+  getSprite Sprites{playerSprite} _ = playerSprite
 
 instance Drawable PlayerBullet where
-  draw sprite b = translate x y sprite
-    where (x,y) = pbPos b
+  getSprite Sprites{pBulletSprite} _ = pBulletSprite
 
 instance Drawable Obstacle where
-  draw sprite o = translate x y sprite
-    where (x,y) = obstaclePos o
+  getSprite Sprites{obstacleSprite} _ = obstacleSprite
 
+draw :: Float -> Point -> Picture -> Picture
+draw orientation (x,y) = rotate orientation . translate x y
+
+-- | Collideable type class
+class Collideable a where
+  getHitbox :: a -> Point
+
+instance Collideable Player where
+  getHitbox Player{playerHbox} = playerHbox 
+
+instance Collideable PlayerBullet where
+  getHitbox PlayerBullet{pbHbox} = pbHbox
+
+instance Collideable Obstacle where
+  getHitbox Obstacle{obstacleHbox} = obstacleHbox
+
+-- | Destructible type class
+class Destructible a where
+  applyDamage :: a -> Int -> Maybe a
+  remove :: a -> GameState -> GameState
+
+instance Destructible Player where
+  applyDamage player@Player {playerHp} damage 
+    | playerHp - damage <= 0 = Nothing
+    | otherwise = Just player {playerHp = playerHp - damage}
+  remove p gstate = undefined
+
+instance Destructible Obstacle where
+  applyDamage obs@Obstacle {obstacleHp} damage
+    | obstacleHp - damage <= 0 = Nothing
+    | otherwise = Just obs {obstacleHp = obstacleHp - damage}
+  remove o gstate@GameState{obstacles} = gstate {obstacles = delete o obstacles}
+
+-- | Moveable type class
+class Positionable a => Moveable a where
+  getSpeed :: a -> Float
+  move :: a -> a
+  move a = changePosition a (clamp (x + (speed * cos orient)) (-500,500), clamp (y + (speed * sin orient)) (-300,300)) where
+    (x,y) = getPosition a
+    orient = getOrientation a / 180 * pi
+    speed = getSpeed a
+
+instance Moveable PlayerBullet where
+  getSpeed PlayerBullet{pbSpeed} = pbSpeed
+
+-- not sure about this
+class Shootable a where
+  shoot :: (Destructible b, Destructible c) => a -> [b] -> [c]
+
+collide :: (Positionable a, Positionable b, Collideable a, Collideable b) => a -> b -> Bool
+collide a b = not (segClearsBox (xa - wa, ya - ha) (xa + wa, ya + ha) ll ur)
+              || not (segClearsBox (xa - wa, ya + ha) (xa + wa, ya - ha) ll ur)
+  where
+    (xa,ya) = getPosition a
+    (wa,ha) = getHitbox a
+    ll = (xb - wb, yb - hb)
+    ur = (xb + wb, yb + hb)
+    (xb,yb) = getPosition b
+    (wb,hb) = getHitbox b
+
+{-
 
 -- | Collidable type class
 -- maybe instead: Bullet type class for bullets that check collision with respective things they can hit
@@ -119,15 +212,15 @@ instance Collideable Player where
 instance Collideable PlayerBullet where
   getPosHitBox pb = (pbPos pb, pbHbox pb)
   checkCollision gstate@GameState{playerBullets, obstacles} x = case find (collide x) obstacles of
-    Just o  -> obstacleHit gstate x o
+    Just o  -> obstacleHit gstate{playerBullets = delete x playerBullets} (pbDmg x) o
     Nothing -> gstate
 
 -- TO DO: move this to a more logical place
-obstacleHit :: GameState -> PlayerBullet -> Obstacle -> GameState
-obstacleHit gstate@GameState{playerBullets, obstacles} pb@PlayerBullet{pbDmg} o@Obstacle{obstacleHp}
-  | newHp > 0 = gstate{playerBullets = delete pb playerBullets, obstacles = ((o{obstacleHp = newHp} :) . delete o) obstacles}
-  | otherwise = gstate{playerBullets = delete pb playerBullets, obstacles = delete o obstacles}
-  where newHp = obstacleHp - pbDmg
+obstacleHit :: GameState -> Int -> Obstacle -> GameState
+obstacleHit gstate@GameState{playerBullets, obstacles} dmg o@Obstacle{obstacleHp}
+  | newHp > 0 = gstate{obstacles = ((o{obstacleHp = newHp} :) . delete o) obstacles}
+  | otherwise = gstate{obstacles = delete o obstacles}
+  where newHp = obstacleHp - dmg
 
 instance Collideable Obstacle where
   getPosHitBox o = (obstaclePos o, obstacleHbox o)
@@ -155,6 +248,8 @@ instance Moveable PlayerBullet where
     | nx < 550 = Just pb {pbPos = (nx, y)} -- Delete the bullet when it's off the screen
     | otherwise = Nothing
     where nx = x + pbSpeed
+
+-}
 
 -- TO DO : move this to seperate file or something
 clamp :: Float -> (Float, Float) -> Float
