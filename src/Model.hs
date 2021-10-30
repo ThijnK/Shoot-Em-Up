@@ -26,9 +26,16 @@ initialState sprites = GameState {
   paused        = False,
   timeElapsed   = 0.0,
   downKeys      = [],
-  player        = Player (-100,0) 100 5 1 (13,8),
+  player        = Player {
+    playerPos = (-100, 0),
+    playerOrient = 0,
+    playerHp = 100,
+    playerSpeed = 5,
+    playerFr = 1,
+    playerHbox = (13, 8)
+  },
   playerBullets = [],
-  obstacles     = [Obstacle (0,0) 50 (10,10)],
+  obstacles     = [],
   sprites       = sprites
 }
 
@@ -141,21 +148,25 @@ instance Collideable Obstacle where
   getHitbox Obstacle{obstacleHbox} = obstacleHbox
 
 -- | Destructible type class
-class Destructible a where
-  applyDamage :: a -> Int -> Maybe a
+class (Positionable a, Collideable a) => Destructible a where
+  applyDamage :: a -> Int -> (Bool, a)
   remove :: a -> GameState -> GameState
 
 instance Destructible Player where
   applyDamage player@Player {playerHp} damage 
-    | playerHp - damage <= 0 = Nothing
-    | otherwise = Just player {playerHp = playerHp - damage}
+    | playerHp - damage <= 0 = (True, player)
+    | otherwise = (False, player {playerHp = playerHp - damage})
   remove p gstate = undefined
 
 instance Destructible Obstacle where
   applyDamage obs@Obstacle {obstacleHp} damage
-    | obstacleHp - damage <= 0 = Nothing
-    | otherwise = Just obs {obstacleHp = obstacleHp - damage}
+    | obstacleHp - damage <= 0 = (True, obs)
+    | otherwise = (False, obs {obstacleHp = obstacleHp - damage})
   remove o gstate@GameState{obstacles} = gstate {obstacles = delete o obstacles}
+
+instance Destructible PlayerBullet where
+  applyDamage obs damage = undefined
+  remove pb gstate@GameState {playerBullets} = gstate {playerBullets = delete pb playerBullets}
 
 -- | Moveable type class
 class Positionable a => Moveable a where
@@ -170,8 +181,28 @@ instance Moveable PlayerBullet where
   getSpeed PlayerBullet{pbSpeed} = pbSpeed
 
 -- not sure about this
-class Shootable a where
-  shoot :: (Destructible b, Destructible c) => a -> [b] -> [c]
+class (Positionable a, Collideable a) => Shootable a where
+  shoot :: Destructible b => a -> [b] -> (Maybe a, Maybe b)
+
+instance Shootable PlayerBullet where
+  shoot pb@PlayerBullet{pbDmg} xs = case find (collide pb) xs of
+    Just b -> case applyDamage b pbDmg of
+      (True, x)  -> (Just pb, Just x)
+      (False, x) -> (Just pb, Just x)
+
+-- ===============================================================
+-- updated Destructible also needs to be added to new GameState!!!!!!!!!!!!!!!!!!!!!!!!!?!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+{-    __        __
+     /\ \      /\ \       [ ]    _   _     _______
+    /  \ \    /  \ \       _    | | / /   |
+   / /\ \ \  / /\ \ \     | |   | |/ /    |
+  / / /\ \ \/ / /\ \ \    | |   | | /     |_______
+ / / /  \_\/ / /  \_\ \   | |   | |\      |
+/ / /    \_\/_/    \_\_\  | |   | | \     |
+\/_/                \/_/  |_|   |_|  \_   |_______
+-}
+    Nothing -> (Nothing, Nothing)
+    
 
 collide :: (Positionable a, Positionable b, Collideable a, Collideable b) => a -> b -> Bool
 collide a b = not (segClearsBox (xa - wa, ya - ha) (xa + wa, ya + ha) ll ur)

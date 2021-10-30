@@ -16,10 +16,19 @@ import Data.Maybe
 
 -- | Handle one iteration of the game
 step :: Float -> GameState -> IO GameState
-step secs gstate@GameState{player, playerBullets, downKeys} = return gstate' where
-  gstate' = checkCollision (gstate{player = p, playerBullets = pbs}) pbs
-  (Just p)   = move gstate player
-  (Just pbs) = move gstate playerBullets
+step secs gstate@GameState{player, playerBullets, downKeys, obstacles} = return gstate' where
+  -- gstate' = gstate {player = p}
+  -- gstate' = checkCollision (gstate{player = p, playerBullets = pbs}) pbs
+  gstate' = foldr (\x acc -> stuff (shoot x obstacles) acc) gstate{player = p, playerBullets = pbs} playerBullets where
+    stuff (Nothing, Nothing) acc = acc
+    stuff (Just pb, Nothing) acc = remove pb acc
+    stuff (Just pb, Just o) acc = (remove pb . remove o) acc
+    stuff _ acc = acc
+  p = movePlayer player downKeys
+    --map (shoot obstacles) playerBullets
+  pbs = map move playerBullets
+    
+  -- (Just pbs) = move gstate playerBullets
 
 -- | Handle user input
 input :: Event -> GameState -> IO GameState
@@ -43,7 +52,6 @@ fireBullet gstate@GameState{player, playerBullets} = gstate {playerBullets = fri
 
 friendlyBullet :: Point -> PlayerBullet
 friendlyBullet origin = PlayerBullet origin 0 10 50 (10,2)
-
 
 movePlayer :: Player -> [Char] -> Player
 movePlayer player@Player{playerPos = (x,y), playerSpeed} downKeys = player {playerPos = (clamp (x + mx) (-500,500), clamp (y + my) (-300,300))} where
