@@ -24,7 +24,8 @@ step secs gstate@GameState{player, playerBullets, downKeys, explosions} = return
 
 -- | Update objects
 movePlayer :: Player -> [Char] -> Player
-movePlayer player@Player{playerPos = (x,y), playerSpeed} downKeys = player {playerPos = (clamp (x + mx) (-500,500), clamp (y + my) (-300,300))} where
+movePlayer player@Player{playerPos = (x,y), playerSpeed, playerAnim = Anim index total} downKeys
+  = player {playerPos = (clamp (x + mx) (-500,500), clamp (y + my) (-300,300)), playerAnim = Anim ((index + 1) `mod` total) total} where
     (mx,my) = foldr checkKey (0,0) downKeys -- Move based on the keys currently being held down
     checkKey :: Char -> (Float, Float) -> (Float, Float)
     checkKey 's' (x,y) = (x, y - playerSpeed)
@@ -37,20 +38,24 @@ updatePlayerBullets :: GameState -> GameState
 updatePlayerBullets gstate@GameState{playerBullets, explosions} = foldr shootPlayerBullet gstate playerBullets where
   shootPlayerBullet :: PlayerBullet -> GameState -> GameState
   shootPlayerBullet pb gstate = case shoot pb ds of
-    (Miss, _)      -> gstate
+    (Miss, _)      -> filterPlayerBullet pb gstate
     (Damage i, Just o@Obstacle{}) -> (destroy pb . update i o) gstate
     --(Damage i, Just x) -> undefined -- if x is an enemy: i is the index in the list ds, so convert i to index in list of enemies
-    (Kill, Just o@Obstacle{obstaclePos}) -> (destroy pb . destroy o) gstate{explosions = Explosion obstaclePos 0 (0,10) : explosions}
+    (Kill, Just o@Obstacle{obstaclePos}) -> (destroy pb . destroy o) gstate{explosions = Explosion obstaclePos 0 (Anim 0 10) : explosions}
     (_, _)         -> gstate
   ds = obstacles gstate -- ++ enemies
+  filterPlayerBullet :: PlayerBullet -> GameState -> GameState
+  filterPlayerBullet pb gstate
+    | x > 450 = destroy pb gstate
+    | otherwise = gstate
+    where (x,_) = pbPos pb
 
 updateExplosions :: [Explosion] -> [Explosion]
 updateExplosions = mapMaybe updateExplosion where
   updateExplosion :: Explosion -> Maybe Explosion
-  updateExplosion e@Explosion{explosionAnim = (index, total)}
+  updateExplosion e@Explosion{explosionAnim = Anim index total}
     | index + 1 > total = Nothing
-    | otherwise = Just e{explosionAnim = (index + 1, total)}
-
+    | otherwise = Just e{explosionAnim = Anim (index + 1) total}
 
 -- | Handle user input
 input :: Event -> GameState -> IO GameState
