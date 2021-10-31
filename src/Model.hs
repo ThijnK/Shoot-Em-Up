@@ -17,6 +17,7 @@ data GameState = GameState {
   player        :: Player,
   playerBullets :: [PlayerBullet],
   obstacles     :: [Obstacle],
+  explosions    :: [Explosion],
   sprites       :: Sprites
 }
 
@@ -35,7 +36,8 @@ initialState sprites = GameState {
     playerHbox = (13, 8)
   },
   playerBullets = [],
-  obstacles     = [],
+  obstacles     = [Obstacle (0,0) 0 50 (10,10)],
+  explosions    = [Explosion (0,0) 0 (0, 10)],
   sprites       = sprites
 }
 
@@ -46,9 +48,16 @@ initialState sprites = GameState {
 
 
 data Sprites  = Sprites {
-  playerSprite   :: Picture,
-  pBulletSprite  :: Picture,
-  obstacleSprite :: Picture
+  playerSprite     :: Picture,
+  pBulletSprite    :: Picture,
+  obstacleSprite   :: Picture,
+  explosionSprites :: [Picture]
+}
+
+data Explosion = Explosion {
+  explosionPos    :: Point,
+  explosionOrient :: Float,
+  explosionAnim   :: (Int, Int) -- = (currentSpriteIndex, totalSpriteCount)
 }
 
 data Player = Player {
@@ -58,7 +67,7 @@ data Player = Player {
   playerSpeed  :: Float,
   playerFr     :: Float,
   playerHbox   :: Point
-}
+} deriving Eq
 
 data PlayerBullet = PlayerBullet {
   pbPos        :: Point,
@@ -116,6 +125,11 @@ instance Positionable Obstacle where
   getOrientation Obstacle{obstacleOrient} = obstacleOrient
   changePosition o newPos = o{obstaclePos = newPos}
 
+instance Positionable Explosion where
+  getPosition Explosion{explosionPos} = explosionPos
+  getOrientation Explosion{explosionOrient} = explosionOrient
+  changePosition e newPos = e{explosionPos = newPos}
+
 -- | Drawable type class
 class Positionable a => Drawable a where
   getSprite :: Sprites -> a -> Picture
@@ -130,6 +144,9 @@ instance Drawable PlayerBullet where
 
 instance Drawable Obstacle where
   getSprite Sprites{obstacleSprite} _ = obstacleSprite
+
+instance Drawable Explosion where
+  getSprite Sprites{explosionSprites} Explosion{explosionAnim = (index, _)} = explosionSprites !! index
 
 draw :: Float -> Point -> Picture -> Picture
 draw orientation (x,y) = rotate orientation . translate x y
@@ -148,25 +165,29 @@ instance Collideable Obstacle where
   getHitbox Obstacle{obstacleHbox} = obstacleHbox
 
 -- | Destructible type class
-class (Positionable a, Collideable a) => Destructible a where
-  applyDamage :: a -> Int -> (Bool, a)
-  remove :: a -> GameState -> GameState
+class (Positionable a, Collideable a, Eq a) => Destructible a where
+  applyDamage :: a -> Int -> (Bool, a) -- For the Bool value: True means alive, False means dead
+  destroy :: a -> GameState -> GameState
+  update :: Int -> a -> GameState -> GameState
 
 instance Destructible Player where
   applyDamage player@Player {playerHp} damage 
-    | playerHp - damage <= 0 = (True, player)
-    | otherwise = (False, player {playerHp = playerHp - damage})
-  remove p gstate = undefined
+    | playerHp - damage <= 0 = (False, player{playerHp = playerHp - damage})
+    | otherwise = (True, player{playerHp = playerHp - damage})
+  destroy p gstate = undefined
+  update _ p gstate = gstate{player = p}
 
 instance Destructible Obstacle where
-  applyDamage obs@Obstacle {obstacleHp} damage
-    | obstacleHp - damage <= 0 = (True, obs)
-    | otherwise = (False, obs {obstacleHp = obstacleHp - damage})
-  remove o gstate@GameState{obstacles} = gstate {obstacles = delete o obstacles}
+  applyDamage obs@Obstacle{obstacleHp} damage
+    | obstacleHp - damage <= 0 = (False, obs)
+    | otherwise = (True, obs {obstacleHp = obstacleHp - damage})
+  destroy o gstate@GameState{obstacles} = gstate{obstacles = delete o obstacles}
+  update i o gstate@GameState{obstacles} = gstate{obstacles = ((o :) . deleteAt i) obstacles}
 
 instance Destructible PlayerBullet where
   applyDamage obs damage = undefined
-  remove pb gstate@GameState {playerBullets} = gstate {playerBullets = delete pb playerBullets}
+  destroy pb gstate@GameState{playerBullets} = gstate{playerBullets = delete pb playerBullets}
+  update i pb gstate@GameState{playerBullets} = gstate{playerBullets = ((pb :) . deleteAt i) playerBullets}
 
 -- | Moveable type class
 class Positionable a => Moveable a where
@@ -182,16 +203,19 @@ instance Moveable PlayerBullet where
 
 -- not sure about this
 class (Positionable a, Collideable a) => Shootable a where
-  shoot :: Destructible b => a -> [b] -> (Maybe a, Maybe b)
+  shoot :: Destructible b => a -> [b] -> (HitInfo, Maybe b)
+
+data HitInfo = Miss | Damage Int | Kill
 
 instance Shootable PlayerBullet where
   shoot pb@PlayerBullet{pbDmg} xs = case find (collide pb) xs of
-    Just b -> case applyDamage b pbDmg of
-      (True, x)  -> (Just pb, Just x)
-      (False, x) -> (Just pb, Just x)
-
--- ===============================================================
--- updated Destructible also needs to be added to new GameState!!!!!!!!!!!!!!!!!!!!!!!!!?!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    Just x -> case applyDamage x pbDmg of
+      (True, y)  -> (Damage i, Just y)
+      (False, y) -> (Kill, Just y)
+      where (Just i) = elemIndex x xs
+    Nothing -> (Miss, Nothing)
+    
+    
 {-    __        __
      /\ \      /\ \       [ ]    _   _     _______
     /  \ \    /  \ \       _    | | / /   |
@@ -201,8 +225,6 @@ instance Shootable PlayerBullet where
 / / /    \_\/_/    \_\_\  | |   | | \     |
 \/_/                \/_/  |_|   |_|  \_   |_______
 -}
-    Nothing -> (Nothing, Nothing)
-    
 
 collide :: (Positionable a, Positionable b, Collideable a, Collideable b) => a -> b -> Bool
 collide a b = not (segClearsBox (xa - wa, ya - ha) (xa + wa, ya + ha) ll ur)
@@ -282,6 +304,10 @@ instance Moveable PlayerBullet where
 
 -}
 
--- TO DO : move this to seperate file or something
+-- TO DO : move these helper functions to seperate file or something
 clamp :: Float -> (Float, Float) -> Float
 clamp x (l,u) = max (min x u) l
+
+deleteAt :: Int -> [a] -> [a]
+deleteAt i xs = l ++ r
+  where (l, _:r) = splitAt i xs

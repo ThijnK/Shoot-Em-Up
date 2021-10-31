@@ -16,19 +16,41 @@ import Data.Maybe
 
 -- | Handle one iteration of the game
 step :: Float -> GameState -> IO GameState
-step secs gstate@GameState{player, playerBullets, downKeys, obstacles} = return gstate' where
-  -- gstate' = gstate {player = p}
-  -- gstate' = checkCollision (gstate{player = p, playerBullets = pbs}) pbs
-  gstate' = foldr (\x acc -> stuff (shoot x obstacles) acc) gstate{player = p, playerBullets = pbs} playerBullets where
-    stuff (Nothing, Nothing) acc = acc
-    stuff (Just pb, Nothing) acc = remove pb acc
-    stuff (Just pb, Just o) acc = (remove pb . remove o) acc
-    stuff _ acc = acc
+step secs gstate@GameState{player, playerBullets, downKeys, explosions} = return gstate' where
+  gstate' = updatePlayerBullets gstate{player = p, playerBullets = pbs, explosions = e}
   p = movePlayer player downKeys
-    --map (shoot obstacles) playerBullets
   pbs = map move playerBullets
-    
-  -- (Just pbs) = move gstate playerBullets
+  e = updateExplosions explosions
+
+-- | Update objects
+movePlayer :: Player -> [Char] -> Player
+movePlayer player@Player{playerPos = (x,y), playerSpeed} downKeys = player {playerPos = (clamp (x + mx) (-500,500), clamp (y + my) (-300,300))} where
+    (mx,my) = foldr checkKey (0,0) downKeys -- Move based on the keys currently being held down
+    checkKey :: Char -> (Float, Float) -> (Float, Float)
+    checkKey 's' (x,y) = (x, y - playerSpeed)
+    checkKey 'a' (x,y) = (x - playerSpeed, y)
+    checkKey 'w' (x,y) = (x, y + playerSpeed)
+    checkKey 'd' (x,y) = (x + playerSpeed, y)
+    checkKey _   acc   = acc
+
+updatePlayerBullets :: GameState -> GameState
+updatePlayerBullets gstate@GameState{playerBullets, explosions} = foldr shootPlayerBullet gstate playerBullets where
+  shootPlayerBullet :: PlayerBullet -> GameState -> GameState
+  shootPlayerBullet pb gstate = case shoot pb ds of
+    (Miss, _)      -> gstate
+    (Damage i, Just o@Obstacle{}) -> (destroy pb . update i o) gstate
+    --(Damage i, Just x) -> undefined -- if x is an enemy: i is the index in the list ds, so convert i to index in list of enemies
+    (Kill, Just o@Obstacle{obstaclePos}) -> (destroy pb . destroy o) gstate{explosions = Explosion obstaclePos 0 (0,10) : explosions}
+    (_, _)         -> gstate
+  ds = obstacles gstate -- ++ enemies
+
+updateExplosions :: [Explosion] -> [Explosion]
+updateExplosions = mapMaybe updateExplosion where
+  updateExplosion :: Explosion -> Maybe Explosion
+  updateExplosion e@Explosion{explosionAnim = (index, total)}
+    | index + 1 > total = Nothing
+    | otherwise = Just e{explosionAnim = (index + 1, total)}
+
 
 -- | Handle user input
 input :: Event -> GameState -> IO GameState
@@ -52,13 +74,3 @@ fireBullet gstate@GameState{player, playerBullets} = gstate {playerBullets = fri
 
 friendlyBullet :: Point -> PlayerBullet
 friendlyBullet origin = PlayerBullet origin 0 10 50 (10,2)
-
-movePlayer :: Player -> [Char] -> Player
-movePlayer player@Player{playerPos = (x,y), playerSpeed} downKeys = player {playerPos = (clamp (x + mx) (-500,500), clamp (y + my) (-300,300))} where
-    (mx,my) = foldr checkKey (0,0) downKeys -- Move based on the keys currently being held down
-    checkKey :: Char -> (Float, Float) -> (Float, Float)
-    checkKey 's' (x,y) = (x, y - playerSpeed)
-    checkKey 'a' (x,y) = (x - playerSpeed, y)
-    checkKey 'w' (x,y) = (x, y + playerSpeed)
-    checkKey 'd' (x,y) = (x + playerSpeed, y)
-    checkKey _   acc   = acc
