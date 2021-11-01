@@ -1,0 +1,7 @@
+{
+	"enemies": [
+		{ "eleTime": 1.5, "eleType": "Obstacle" },
+		{ "eleTime": 3.5, "eleType": "Obstacle" },
+		{ "eleTime": 5.5, "eleType": "Obstacle" }
+	]
+}

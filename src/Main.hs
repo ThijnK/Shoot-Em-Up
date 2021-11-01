@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
 import Controller
@@ -7,19 +9,27 @@ import View
 import Graphics.Gloss
 import Graphics.Gloss.Data.Bitmap
 import Graphics.Gloss.Interface.IO.Game
+import Data.Aeson
+import qualified Data.ByteString.Lazy as BS
+import System.Random
 
 main :: IO ()
-main = do sprites <- loadSprites
+main = do sprites     <- loadSprites
+          enemyList   <- BS.readFile "game/enemies.json"
+          print (decodeEL enemyList) -- debug
+          
           playIO (InWindow "Shoot-Em-Up by Thijn Kroon & Mike Wu" (1000, 600) (0, 0)) -- Or FullScreen
             black            -- Background color
             60               -- Frames per second
-            (initialState sprites)  -- Initial state
+            (initialState sprites (decodeEL enemyList) (mkStdGen 69)) -- Initial state
             view             -- View function
             input            -- Event function
             step             -- Step function
 
+
 loadSprites :: IO Sprites
-loadSprites = do player1      <- loadBMP "assets/player1.bmp"
+loadSprites = do 
+                 player1     <- loadBMP "assets/player1.bmp"
                  player2     <- loadBMP "assets/player2.bmp"
                  player3     <- loadBMP "assets/player3.bmp"
                  player4     <- loadBMP "assets/player4.bmp"
@@ -40,3 +50,8 @@ loadSprites = do player1      <- loadBMP "assets/player1.bmp"
                  let players = [player1, player2, player3, player2, player1, player4, player5, player4]
                  let explosions = [explosion1, explosion2, explosion3, explosion4, explosion5, explosion6, explosion7, explosion8, explosion9, explosion10, explosion11]
                  return (Sprites players bullet obstacle explosions)
+
+decodeEL :: BS.ByteString -> EnemyList
+decodeEL x = case decode x of
+    Nothing -> EnemyList [] -- load failed, return empty list
+    Just any -> any

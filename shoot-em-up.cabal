@@ -11,7 +11,9 @@ executable shoot-em-up
   main-is:             Main.hs
   build-depends:       base >= 4 && < 5,
                        gloss,
-                       random
+                       random,
+                       aeson,
+                       bytestring
   other-modules:
     Controller
     Model

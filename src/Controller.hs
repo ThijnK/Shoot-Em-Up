@@ -11,16 +11,24 @@ import System.Random
 import Data.List
 import Data.Char
 import Data.Maybe
+import GHC.Float.RealFracMethods (int2Float)
 
 -- secs * speed to normalize
 
 -- | Handle one iteration of the game
 step :: Float -> GameState -> IO GameState
-step secs gstate@GameState{player, playerBullets, downKeys, explosions} = return gstate' where
-  gstate' = updatePlayerBullets gstate{player = p, playerBullets = pbs, explosions = e}
-  p = movePlayer player downKeys
-  pbs = map move playerBullets
-  e = updateExplosions explosions
+step secs gstate@GameState{timeElapsed, player, playerBullets, downKeys, explosions, obstacles} = 
+  do
+    print (length obs)
+    pure gstate' 
+    where
+      gstate' = updatePlayerBullets gstate {timeElapsed = t, player = p, playerBullets = pbs, explosions = e, obstacles = obs, enemyList = eList, generator = newGen}
+      t = timeElapsed + secs
+      p = movePlayer player downKeys
+      pbs = map move playerBullets
+      obs = map move obs_
+      e = updateExplosions explosions
+      (eList@(EnemyList enemies), obs_, newGen) = spawnEnemies gstate
 
 -- | Update objects
 movePlayer :: Player -> [Char] -> Player
@@ -56,6 +64,30 @@ updateExplosions = mapMaybe updateExplosion where
   updateExplosion e@Explosion{explosionAnim = Anim index total}
     | index + 1 > total = Nothing
     | otherwise = Just e{explosionAnim = Anim (index + 1) total}
+
+spawnEnemies :: GameState -> (EnemyList, [Obstacle], StdGen)
+spawnEnemies gstate@GameState{timeElapsed, enemyList, obstacles, generator}
+  | timeElapsed > enemyTimer = (newList, newObstacle ++ obstacles, newGen)
+  | otherwise = (enemyList, obstacles, generator)
+  where
+    (enemyTimer, enemyType, newList) = enemyInfo enemyList
+    -- Future proof :OOO
+    -- newEnemy :: [Enemy]
+    -- newEnemy
+    --   | enemyType == "corvette" = []
+    --   | otherwise = []
+    newObstacle :: [Obstacle]
+    newObstacle | enemyType == "Obstacle" = [defaultObstacle]
+                | otherwise = []
+
+    range = (-250, 250)
+    (iRandYPos, newGen) = randomR range generator
+    randYPos = int2Float iRandYPos
+
+-- Returns enemy info if at least one enemy has yet to be spawned
+enemyInfo :: EnemyList -> (Float, String, EnemyList)
+enemyInfo eList@(EnemyList (EnemyListEnemy enemyTimer enemyType : xs)) = (enemyTimer, enemyType, EnemyList xs)
+enemyInfo eList@(EnemyList []) = (1.0 / 0, "", eList)
 
 -- | Handle user input
 input :: Event -> GameState -> IO GameState

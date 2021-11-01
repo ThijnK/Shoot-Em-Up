@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE DeriveGeneric #-}
 -- | This module contains the data types
 --   which represent the state of the game
 module Model where
@@ -8,6 +9,9 @@ import Graphics.Gloss.Data.Bitmap
 import Graphics.Gloss.Geometry.Line ( segClearsBox )
 import Data.Maybe
 import Data.List
+import Data.Aeson
+import GHC.Generics
+import System.Random
 
 data GameState = GameState {
   score         :: Int,
@@ -18,11 +22,13 @@ data GameState = GameState {
   playerBullets :: [PlayerBullet],
   obstacles     :: [Obstacle],
   explosions    :: [Explosion],
-  sprites       :: Sprites
+  sprites       :: Sprites,
+  enemyList     :: EnemyList,
+  generator     :: StdGen 
 }
 
-initialState :: Sprites -> GameState
-initialState sprites = GameState {
+initialState :: Sprites -> EnemyList -> StdGen -> GameState
+initialState sprites enemyList generator = GameState {
   score         = 0,
   paused        = False,
   timeElapsed   = 0.0,
@@ -37,10 +43,15 @@ initialState sprites = GameState {
     playerAnim = Anim 0 8
   },
   playerBullets = [],
-  obstacles     = [Obstacle (0,0) 0 50 (10,10)],
+  obstacles     = [defaultObstacle],
   explosions    = [],
-  sprites       = sprites
+  sprites       = sprites,
+  enemyList     = enemyList,
+  generator     = generator
 }
+
+defaultObstacle :: Obstacle
+defaultObstacle = Obstacle (0, 0) 3.1415926535897932384626 5 50 (10, 10)
 
 data Animation = Anim Int Int -- currentSpriteIndex and totalSpriteCount
   deriving Eq
@@ -88,6 +99,7 @@ data PlayerBullet = PlayerBullet {
 data Obstacle = Obstacle {
   obstaclePos    :: Point,
   obstacleOrient :: Float,
+  obstacleSpeed  :: Float,
   obstacleHp     :: Int,
   obstacleHbox   :: Point
 } deriving Eq
@@ -194,11 +206,14 @@ class Positionable a => Moveable a where
   move :: a -> a
   move a = changePosition a (x + (speed * cos orient), y + (speed * sin orient)) where
     (x,y) = getPosition a
-    orient = getOrientation a / 180 * pi
+    orient = getOrientation a
     speed = getSpeed a
 
 instance Moveable PlayerBullet where
   getSpeed PlayerBullet{pbSpeed} = pbSpeed
+
+instance Moveable Obstacle where
+  getSpeed Obstacle {obstacleSpeed} = obstacleSpeed
 
 -- | Shootable type class
 class (Positionable a, Collideable a) => Shootable a where
@@ -243,3 +258,18 @@ clamp x (l,u) = max (min x u) l
 deleteAt :: Int -> [a] -> [a]
 deleteAt i xs = l ++ r
   where (l, _:r) = splitAt i xs
+
+
+
+-- stuff for enemy spawning
+-- hlint be angery when i put data so yea we have newtype now
+newtype EnemyList = EnemyList {enemies :: [EnemyListEnemy]} deriving (Show, Generic)
+
+data EnemyListEnemy = EnemyListEnemy
+  { eleTime :: Float,
+    eleType :: String
+  }
+  deriving (Show, Generic)
+
+instance FromJSON EnemyList
+instance FromJSON EnemyListEnemy
