@@ -29,12 +29,12 @@ version :: Version
 version = Version [0,1,0,0] []
 bindir, libdir, dynlibdir, datadir, libexecdir, sysconfdir :: FilePath
 
-bindir     = "D:\\University\\Functioneel Programmeren\\Game\\Shoot-Em-Up\\.stack-work\\install\\2a26e89c\\bin"
-libdir     = "D:\\University\\Functioneel Programmeren\\Game\\Shoot-Em-Up\\.stack-work\\install\\2a26e89c\\lib\\x86_64-windows-ghc-8.6.5\\shoot-em-up-0.1.0.0-4CWnk7L5G1g1oFPHmai5T-shoot-em-up"
-dynlibdir  = "D:\\University\\Functioneel Programmeren\\Game\\Shoot-Em-Up\\.stack-work\\install\\2a26e89c\\lib\\x86_64-windows-ghc-8.6.5"
-datadir    = "D:\\University\\Functioneel Programmeren\\Game\\Shoot-Em-Up\\.stack-work\\install\\2a26e89c\\share\\x86_64-windows-ghc-8.6.5\\shoot-em-up-0.1.0.0"
-libexecdir = "D:\\University\\Functioneel Programmeren\\Game\\Shoot-Em-Up\\.stack-work\\install\\2a26e89c\\libexec\\x86_64-windows-ghc-8.6.5\\shoot-em-up-0.1.0.0"
-sysconfdir = "D:\\University\\Functioneel Programmeren\\Game\\Shoot-Em-Up\\.stack-work\\install\\2a26e89c\\etc"
+bindir     = "C:\\Users\\mikew\\Desktop\\Projects\\Shoot-Em-Up\\.stack-work\\install\\20fccde5\\bin"
+libdir     = "C:\\Users\\mikew\\Desktop\\Projects\\Shoot-Em-Up\\.stack-work\\install\\20fccde5\\lib\\x86_64-windows-ghc-8.6.5\\shoot-em-up-0.1.0.0-4CWnk7L5G1g1oFPHmai5T-shoot-em-up"
+dynlibdir  = "C:\\Users\\mikew\\Desktop\\Projects\\Shoot-Em-Up\\.stack-work\\install\\20fccde5\\lib\\x86_64-windows-ghc-8.6.5"
+datadir    = "C:\\Users\\mikew\\Desktop\\Projects\\Shoot-Em-Up\\.stack-work\\install\\20fccde5\\share\\x86_64-windows-ghc-8.6.5\\shoot-em-up-0.1.0.0"
+libexecdir = "C:\\Users\\mikew\\Desktop\\Projects\\Shoot-Em-Up\\.stack-work\\install\\20fccde5\\libexec\\x86_64-windows-ghc-8.6.5\\shoot-em-up-0.1.0.0"
+sysconfdir = "C:\\Users\\mikew\\Desktop\\Projects\\Shoot-Em-Up\\.stack-work\\install\\20fccde5\\etc"
 
 getBinDir, getLibDir, getDynLibDir, getDataDir, getLibexecDir, getSysconfDir :: IO FilePath
 getBinDir = catchIO (getEnv "shoot_em_up_bindir") (\_ -> return bindir)
