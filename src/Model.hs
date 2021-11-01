@@ -51,15 +51,15 @@ initialState sprites enemyList generator = GameState {
   drones        = [],
   playerBullets = [],
   enemyBullets  = [],
-  obstacles     = [defaultObstacle],
+  obstacles     = [defaultObstacle (0,0)],
   explosions    = [],
   sprites       = sprites,
   enemyList     = enemyList,
   generator     = generator
 }
 
-defaultObstacle :: Obstacle
-defaultObstacle = Obstacle (0, 0) pi 5 50 (10, 10)
+defaultObstacle :: Point -> Obstacle
+defaultObstacle pos = Obstacle pos pi 300 50 (10, 10)
 
 data FireRate = FireRate Float Float -- fireRate(1 / bulletsPerSecond) secondsSinceLastShot
   deriving Eq
@@ -230,7 +230,7 @@ instance Drawable Explosion where
   getSprite Sprites{explosionSprites} Explosion{explosionAnim = Animation index _ _ _} = explosionSprites !! index
 
 draw :: Float -> Point -> Picture -> Picture
-draw orientation (x,y) = rotate orientation . translate x y
+draw orientation (x,y) = translate x y . rotate orientation
 
 -- | Collideable type class
 class Collideable a where
@@ -363,8 +363,6 @@ clamp x (l,u) = max (min x u) l
 deleteAt :: Int -> [a] -> [a]
 deleteAt i xs = l ++ r
   where (l, _:r) = splitAt i xs
-
-
 
 -- stuff for enemy spawning
 -- hlint be angery when i put data so yea we have newtype now

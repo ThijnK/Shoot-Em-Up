@@ -14,9 +14,8 @@ viewPure :: GameState -> Picture
 viewPure gstate@GameState{player, playerBullets, obstacles, explosions, sprites} = 
     pictures (map (toPicture sprites) playerBullets
               ++ [toPicture sprites player]
-              ++ map (toPicture sprites) obstacles 
+              ++ concatMap (\x -> [temp x, toPicture sprites x]) obstacles 
               ++ map (toPicture sprites) explosions
-              -- ++ [temp (Obstacle (0,0) 0 50 (10,10))]
             )
 
               

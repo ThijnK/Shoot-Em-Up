@@ -17,7 +17,7 @@ import GHC.Float.RealFracMethods (int2Float)
 
 -- | Handle one iteration of the game
 step :: Float -> GameState -> IO GameState
-step secs gstate@GameState{paused, player, downKeys, explosions}
+step secs gstate@GameState{paused, timeElapsed, player, downKeys, explosions}
   | paused = return gstate -- No change to gamestate if game is paused
   | otherwise = return gstate'
   where
@@ -25,8 +25,8 @@ step secs gstate@GameState{paused, player, downKeys, explosions}
     t = timeElapsed + secs
     p = updatePlayer secs player downKeys
     e = updateExplosions secs explosions
-    obs = map move obs_
-    (eList@(EnemyList enemies), obs_, newGen) = spawnEnemies gstate
+    obs = map (move secs) obs'
+    (eList@(EnemyList enemies), obs', newGen) = spawnEnemies gstate
 
 -- | Update objects
 updatePlayer :: Float -> Player -> [Char] -> Player
@@ -79,7 +79,7 @@ spawnEnemies gstate@GameState{timeElapsed, enemyList, obstacles, generator}
     --   | enemyType == "corvette" = []
     --   | otherwise = []
     newObstacle :: [Obstacle]
-    newObstacle | enemyType == "Obstacle" = [defaultObstacle]
+    newObstacle | enemyType == "Obstacle" = [defaultObstacle (500, randYPos)]
                 | otherwise = []
 
     range = (-250, 250)
