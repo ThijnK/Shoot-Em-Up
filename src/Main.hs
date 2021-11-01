@@ -19,12 +19,21 @@ main = do sprites <- loadSprites
             step             -- Step function
 
 loadSprites :: IO Sprites
-loadSprites = do player1      <- loadBMP "assets/player1.bmp"
-                 player2     <- loadBMP "assets/player2.bmp"
-                 player3     <- loadBMP "assets/player3.bmp"
-                 player4     <- loadBMP "assets/player4.bmp"
-                 player5     <- loadBMP "assets/player5.bmp"
-                 bullet      <- loadBMP "assets/laser.bmp"
+loadSprites = do player1     <- loadBMP "assets/player-1.bmp"
+                 player2     <- loadBMP "assets/player-2.bmp"
+                 player3     <- loadBMP "assets/player-3.bmp"
+                 player4     <- loadBMP "assets/player-4.bmp"
+                 player5     <- loadBMP "assets/player-5.bmp"
+                 turret1     <- loadBMP "assets/turret-1.bmp"
+                 turret2     <- loadBMP "assets/turret-2.bmp"
+                 turret3     <- loadBMP "assets/turret-3.bmp"
+                 turret4     <- loadBMP "assets/turret-4.bmp"
+                 drone1      <- loadBMP "assets/drone-1.bmp"
+                 drone2      <- loadBMP "assets/drone-2.bmp"
+                 drone3      <- loadBMP "assets/drone-3.bmp"
+                 bullet1     <- loadBMP "assets/bullet-1.bmp"
+                 bullet2     <- loadBMP "assets/bullet-2.bmp"
+                 --bullet3     <- loadBMP "assets/bullet-3.bmp"
                  obstacle    <- loadBMP "assets/obstacle.bmp"
                  explosion1  <- loadBMP "assets/explosion-01.bmp"
                  explosion2  <- loadBMP "assets/explosion-02.bmp"
@@ -37,6 +46,8 @@ loadSprites = do player1      <- loadBMP "assets/player1.bmp"
                  explosion9  <- loadBMP "assets/explosion-09.bmp"
                  explosion10 <- loadBMP "assets/explosion-10.bmp"
                  explosion11 <- loadBMP "assets/explosion-11.bmp"
-                 let players = [player1, player2, player3, player2, player1, player4, player5, player4]
-                 let explosions = [explosion1, explosion2, explosion3, explosion4, explosion5, explosion6, explosion7, explosion8, explosion9, explosion10, explosion11]
-                 return (Sprites players bullet obstacle explosions)
+                 let player = [player1, player2, player3, player2, player1, player4, player5, player4]
+                 let turret = [turret1, turret2, turret3, turret4]
+                 let drone = [drone1, drone2, drone3, drone2]
+                 let explosion = [explosion1, explosion2, explosion3, explosion4, explosion5, explosion6, explosion7, explosion8, explosion9, explosion10, explosion11]
+                 return (Sprites player bullet1 bullet2 obstacle turret drone explosion)
