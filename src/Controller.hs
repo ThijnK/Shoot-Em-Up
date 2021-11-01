@@ -12,23 +12,25 @@ import Data.List
 import Data.Char
 import Data.Maybe
 import GHC.Float.RealFracMethods (int2Float)
+import Graphics.Gloss.Data.Vector
 
 -- secs * speed to normalize
 
 -- | Handle one iteration of the game
 step :: Float -> GameState -> IO GameState
-step secs gstate@GameState{paused, timeElapsed, player, downKeys, explosions}
+step secs gstate@GameState{paused, timeElapsed, player, turrets, enemyBullets, downKeys, explosions}
   | paused = return gstate -- No change to gamestate if game is paused
   | otherwise = return gstate'
   where
-    gstate' = updatePlayerBullets gstate {deltaTime = secs, timeElapsed = t, player = p, explosions = e, obstacles = obs, enemyList = eList, generator = newGen}
+    gstate' = (updateTurrets . updatePlayerBullets) gstate {deltaTime = secs, timeElapsed = t, player = p, enemyBullets = ebs, explosions = e, obstacles = obs, enemyList = eList, generator = newGen}
     t = timeElapsed + secs
     p = updatePlayer secs player downKeys
     e = updateExplosions secs explosions
+    ebs = map (move secs) enemyBullets
     obs = map (move secs) obs'
     (eList@(EnemyList enemies), obs', newGen) = spawnEnemies gstate
 
--- | Update objects
+-- | Update player
 updatePlayer :: Float -> Player -> [Char] -> Player
 updatePlayer secs player@Player{playerPos = (x,y), playerSpeed, playerAnim} downKeys
   = player {playerPos = (clamp (x + mx) (-500,500), clamp (y + my) (-300,300)), playerAnim = animateR secs playerAnim} where
@@ -40,32 +42,39 @@ updatePlayer secs player@Player{playerPos = (x,y), playerSpeed, playerAnim} down
     checkKey 'd' (x,y) = (x + playerSpeed * secs, y)
     checkKey _   acc   = acc
 
+-- | Update player bullets
 updatePlayerBullets :: GameState -> GameState
 updatePlayerBullets gstate@GameState{deltaTime, playerBullets, explosions} = foldr shootPlayerBullet gstate{playerBullets = pbs} pbs where
   pbs = map (move deltaTime) playerBullets
   shootPlayerBullet :: PlayerBullet -> GameState -> GameState
   shootPlayerBullet pb gstate = case shoot pb ds of
-    (Miss, _)      -> filterPlayerBullet pb gstate
+    (Miss, _)      -> filter' pb gstate
     (Damage i, Just o@Obstacle{}) -> (destroy pb . update i o) gstate
     --(Damage i, Just x) -> undefined -- if x is an enemy: i is the index in the list ds, so convert i to index in list of enemies
-    (Kill, Just o@Obstacle{obstaclePos}) -> (destroy pb . destroy o) gstate{explosions = newExplosion obstaclePos : explosions}
+    (Kill, Just o@Obstacle{obstaclePos}) -> (destroy pb . destroy o) gstate{explosions = defaultExplosion obstaclePos : explosions}
     (_, _)         -> gstate
-  ds = obstacles gstate -- ++ enemies
-  filterPlayerBullet :: PlayerBullet -> GameState -> GameState
-  filterPlayerBullet pb gstate
-    | x > 550 = destroy pb gstate
-    | otherwise = gstate
-    where (x,_) = pbPos pb
+  ds = obstacles gstate -- ++ turrets gstate ++ drones gstate
 
-newExplosion :: Point -> Explosion
-newExplosion pos = Explosion pos 0 (Animation 0 10 0.075 0)
-
+-- | Update explosions
 updateExplosions :: Float -> [Explosion] -> [Explosion]
 updateExplosions secs = mapMaybe animateExplosion where
   animateExplosion :: Explosion -> Maybe Explosion
   animateExplosion e@Explosion{explosionAnim} = case animateM secs explosionAnim of
     Nothing -> Nothing
     Just a  -> Just e{explosionAnim = a}
+
+-- | Update turrets
+updateTurrets :: GameState -> GameState
+updateTurrets gstate@GameState{deltaTime, player = Player{playerPos = (px,py)}, turrets, enemyBullets} 
+  = gstate{turrets = map updateTurret turrets, enemyBullets = foldr turretFire [] turrets ++ enemyBullets} where
+    updateTurret :: Turret -> Turret
+    updateTurret t@Turret{turretFr = FireRate fr last, turretAnim}
+      | last + deltaTime > fr = move deltaTime t{turretFr = FireRate fr 0, turretAnim = animateR deltaTime turretAnim}
+      | otherwise = move deltaTime t{turretFr = FireRate fr (last + deltaTime), turretAnim = animateR deltaTime turretAnim}
+    turretFire :: Turret -> [EnemyBullet] -> [EnemyBullet]
+    turretFire Turret{turretPos = tp@(tx,ty), turretFr = FireRate fr last} acc
+      | last + deltaTime > fr = EnemyBullet tp (argV (px - tx, py - ty)) 10 3000 (10,2): acc
+      | otherwise = acc
 
 spawnEnemies :: GameState -> (EnemyList, [Obstacle], StdGen)
 spawnEnemies gstate@GameState{timeElapsed, enemyList, obstacles, generator}
@@ -109,19 +118,17 @@ inputKey (EventKey (MouseButton LeftButton) Up _ _) gstate = fireBullet gstate
 inputKey _ gstate = gstate
 
 fireBullet :: GameState -> GameState
-fireBullet gstate@GameState{player, playerBullets} = gstate {playerBullets = friendlyBullet origin : playerBullets} where
+fireBullet gstate@GameState{player, playerBullets} = gstate {playerBullets = defaultPlayerBullet origin : playerBullets} where
   origin = playerPos player -- take the player's position as the origin of the bullet
 
-friendlyBullet :: Point -> PlayerBullet
-friendlyBullet origin = PlayerBullet {
-  pbPos    = origin,
-  pbOrient = 0,
-  pbDmg    = 10,
-  pbSpeed  = 3000,
-  pbHbox   = (10,2)
-}
+-- | General helper functions
 
--- | Animation helper functions
+-- Remove an object from gamestate if it's outside of bounds
+filter' :: Destructible a => a -> GameState -> GameState
+filter' a gstate
+  | x > 550 || x < -550 = destroy a gstate
+  | otherwise = gstate
+  where (x,_) = getPosition a
 
 -- Repeats animation when it reaches the end
 animateR :: Float -> Animation -> Animation

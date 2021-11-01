@@ -7,6 +7,7 @@ module Model where
 import Graphics.Gloss
 import Graphics.Gloss.Data.Bitmap
 import Graphics.Gloss.Geometry.Line ( segClearsBox )
+import Graphics.Gloss.Geometry.Angle (radToDeg)
 import Data.Maybe
 import Data.List
 import Data.Aeson
@@ -47,11 +48,11 @@ initialState sprites enemyList generator = GameState {
     playerHbox = (13, 8),
     playerAnim = Animation 0 8 0.2 0
   },
-  turrets       = [],
+  turrets       = [defaultTurret (0,0)],
   drones        = [],
   playerBullets = [],
   enemyBullets  = [],
-  obstacles     = [defaultObstacle (0,0)],
+  obstacles     = [defaultObstacle (0,200)],
   explosions    = [],
   sprites       = sprites,
   enemyList     = enemyList,
@@ -59,7 +60,16 @@ initialState sprites enemyList generator = GameState {
 }
 
 defaultObstacle :: Point -> Obstacle
-defaultObstacle pos = Obstacle pos pi 300 50 (10, 10)
+defaultObstacle pos = Obstacle pos pi 100 50 (10, 10)
+
+defaultExplosion :: Point -> Explosion
+defaultExplosion pos = Explosion pos 0 (Animation 0 10 0.075 0)
+
+defaultTurret :: Point -> Turret
+defaultTurret pos = Turret pos pi 100 100 (FireRate 0.2 0) (8,10) (Animation 0 4 0.2 0)
+
+defaultPlayerBullet :: Point -> PlayerBullet
+defaultPlayerBullet pos = PlayerBullet pos 0 10 3000 (10,2)
 
 data FireRate = FireRate Float Float -- fireRate(1 / bulletsPerSecond) secondsSinceLastShot
   deriving Eq
@@ -139,7 +149,7 @@ data Obstacle = Obstacle {
 {-
 Enemy ideas: 
 - Turret = enemy that does not move and shoots bullets in player's direction
-- Corvette (¬‿¬) = enemy that moves vertically towards the player and fires bullets straight in front of it
+- Corvette = enemy that moves vertically towards the player and fires bullets straight in front of it
 - Drone = moves with the player, spins around and fires multiple bullets around it at a time at fixed intervals
 - Kamikaze = suicide bomber
 -}
@@ -230,7 +240,12 @@ instance Drawable Explosion where
   getSprite Sprites{explosionSprites} Explosion{explosionAnim = Animation index _ _ _} = explosionSprites !! index
 
 draw :: Float -> Point -> Picture -> Picture
-draw orientation (x,y) = translate x y . rotate orientation
+draw orientation (x,y) = translate x y . rotate (radToDeg orientation)
+
+drawHbox :: (Positionable a, Collideable a) => a -> Picture
+drawHbox a = color red (line [(x-w,y-h),(x+w,y-h),(x+w,y+h),(x-w,y+h),(x-w,y-h)]) where
+    (x,y) = getPosition a
+    (w,h) = getHitbox a
 
 -- | Collideable type class
 class Collideable a where
@@ -272,31 +287,31 @@ instance Destructible Turret where
     | turretHp - damage <= 0 = (False, t)
     | otherwise = (True, t {turretHp = turretHp - damage})
   destroy t gstate@GameState{turrets} = gstate{turrets = delete t turrets}
-  update i t gstate@GameState{turrets} = gstate{turrets = ((t :) . deleteAt i) turrets}
+  update i t gstate@GameState{turrets} = gstate{turrets = replace i t turrets}
 
 instance Destructible Drone where
   applyDamage d@Drone{droneHp} damage
     | droneHp - damage <= 0 = (False, d)
     | otherwise = (True, d {droneHp = droneHp - damage})
   destroy d gstate@GameState{drones} = gstate{drones = delete d drones}
-  update i d gstate@GameState{drones} = gstate{drones = ((d :) . deleteAt i) drones}
+  update i d gstate@GameState{drones} = gstate{drones = replace i d drones}
 
 instance Destructible Obstacle where
   applyDamage obs@Obstacle{obstacleHp} damage
     | obstacleHp - damage <= 0 = (False, obs)
     | otherwise = (True, obs {obstacleHp = obstacleHp - damage})
   destroy o gstate@GameState{obstacles} = gstate{obstacles = delete o obstacles}
-  update i o gstate@GameState{obstacles} = gstate{obstacles = ((o :) . deleteAt i) obstacles}
+  update i o gstate@GameState{obstacles} = gstate{obstacles = replace i o obstacles}
 
 instance Destructible PlayerBullet where
   applyDamage pb damage = undefined -- not used
   destroy pb gstate@GameState{playerBullets} = gstate{playerBullets = delete pb playerBullets}
-  update i pb gstate@GameState{playerBullets} = gstate{playerBullets = ((pb :) . deleteAt i) playerBullets}
+  update i pb gstate@GameState{playerBullets} = gstate{playerBullets = replace i pb playerBullets}
 
 instance Destructible EnemyBullet where
   applyDamage eb damage = undefined
   destroy eb gstate@GameState{enemyBullets} = gstate{enemyBullets = delete eb enemyBullets}
-  update i eb gstate@GameState{enemyBullets} = gstate{enemyBullets = ((eb :) . deleteAt i) enemyBullets}
+  update i eb gstate@GameState{enemyBullets} = gstate{enemyBullets = replace i eb enemyBullets}
 
 -- | Moveable type class
 class Positionable a => Moveable a where
@@ -311,6 +326,12 @@ instance Moveable PlayerBullet where
 
 instance Moveable Obstacle where
   getSpeed Obstacle {obstacleSpeed} = obstacleSpeed
+
+instance Moveable Turret where
+  getSpeed Turret{turretSpeed} = turretSpeed
+
+instance Moveable EnemyBullet where
+  getSpeed EnemyBullet{ebSpeed} = ebSpeed
 
 -- | Shootable type class
 class (Positionable a, Collideable a) => Shootable a where
@@ -337,11 +358,11 @@ instance Shootable PlayerBullet where
 \/_/                \/_/  |_|   |_|  \_   |_______
 
 ┌───────────┐
-└────┐ ┌────┘
-     │ │     
-     │ │     
-     │ │     
-     └─┘ hijn
+└────┐  ┌────┘
+     │  │     
+     │  │     
+     │  │     
+     └─ ┘ hijn
 
 -}
 
@@ -359,6 +380,10 @@ collide a b = not (segClearsBox (xa - wa, ya - ha) (xa + wa, ya + ha) ll ur)
 -- TO DO : move these helper functions to seperate file or something
 clamp :: Float -> (Float, Float) -> Float
 clamp x (l,u) = max (min x u) l
+
+replace :: Int -> a -> [a] -> [a]
+replace index x xs = zs ++ (x:ys)
+  where (zs, _:ys) = splitAt index xs
 
 deleteAt :: Int -> [a] -> [a]
 deleteAt i xs = l ++ r

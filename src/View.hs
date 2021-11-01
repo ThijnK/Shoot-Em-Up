@@ -11,17 +11,12 @@ view :: GameState -> IO Picture
 view = return . viewPure
 
 viewPure :: GameState -> Picture
-viewPure gstate@GameState{player, playerBullets, obstacles, explosions, sprites} = 
+viewPure gstate@GameState{player, turrets, drones, playerBullets, enemyBullets, obstacles, explosions, sprites} = 
     pictures (map (toPicture sprites) playerBullets
-              ++ [toPicture sprites player]
-              ++ concatMap (\x -> [temp x, toPicture sprites x]) obstacles 
+              ++ map (toPicture sprites) enemyBullets
+              ++ map (toPicture sprites) turrets
+              ++ map (toPicture sprites) drones
+              ++ map (toPicture sprites) obstacles 
               ++ map (toPicture sprites) explosions
+              ++ [toPicture sprites player]
             )
-
-              
-
--- temporary for testing
-temp :: (Positionable a, Collideable a) => a -> Picture
-temp a = color red (line [(x-w,y-h),(x+w,y-h),(x+w,y+h),(x-w,y+h),(x-w,y-h)]) where
-    (x,y) = getPosition a
-    (w,h) = getHitbox a
