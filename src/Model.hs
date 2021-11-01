@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE DeriveGeneric #-}
 -- | This module contains the data types
 --   which represent the state of the game
 module Model where
@@ -8,6 +9,9 @@ import Graphics.Gloss.Data.Bitmap
 import Graphics.Gloss.Geometry.Line ( segClearsBox )
 import Data.Maybe
 import Data.List
+import Data.Aeson
+import GHC.Generics
+import System.Random
 
 data GameState = GameState {
   score         :: Int,
@@ -22,11 +26,13 @@ data GameState = GameState {
   enemyBullets  :: [EnemyBullet],
   obstacles     :: [Obstacle],
   explosions    :: [Explosion],
-  sprites       :: Sprites
+  sprites       :: Sprites,
+  enemyList     :: EnemyList,
+  generator     :: StdGen 
 }
 
-initialState :: Sprites -> GameState
-initialState sprites = GameState {
+initialState :: Sprites -> EnemyList -> StdGen -> GameState
+initialState sprites enemyList generator = GameState {
   score         = 0,
   paused        = False,
   deltaTime     = 0.0,
@@ -45,10 +51,15 @@ initialState sprites = GameState {
   drones        = [],
   playerBullets = [],
   enemyBullets  = [],
-  obstacles     = [Obstacle (0,0) 0 50 (10,10)],
+  obstacles     = [defaultObstacle],
   explosions    = [],
-  sprites       = sprites
+  sprites       = sprites,
+  enemyList     = enemyList,
+  generator     = generator
 }
+
+defaultObstacle :: Obstacle
+defaultObstacle = Obstacle (0, 0) pi 5 50 (10, 10)
 
 data FireRate = FireRate Float Float -- fireRate(1 / bulletsPerSecond) secondsSinceLastShot
   deriving Eq
@@ -120,6 +131,7 @@ data EnemyBullet = EnemyBullet {
 data Obstacle = Obstacle {
   obstaclePos    :: Point,
   obstacleOrient :: Float,
+  obstacleSpeed  :: Float,
   obstacleHp     :: Int,
   obstacleHbox   :: Point
 } deriving Eq
@@ -297,6 +309,9 @@ class Positionable a => Moveable a where
 instance Moveable PlayerBullet where
   getSpeed PlayerBullet{pbSpeed} = pbSpeed
 
+instance Moveable Obstacle where
+  getSpeed Obstacle {obstacleSpeed} = obstacleSpeed
+
 -- | Shootable type class
 class (Positionable a, Collideable a) => Shootable a where
   shoot :: Destructible b => a -> [b] -> (HitInfo, Maybe b)
@@ -348,3 +363,18 @@ clamp x (l,u) = max (min x u) l
 deleteAt :: Int -> [a] -> [a]
 deleteAt i xs = l ++ r
   where (l, _:r) = splitAt i xs
+
+
+
+-- stuff for enemy spawning
+-- hlint be angery when i put data so yea we have newtype now
+newtype EnemyList = EnemyList {enemies :: [EnemyListEnemy]} deriving (Show, Generic)
+
+data EnemyListEnemy = EnemyListEnemy
+  { eleTime :: Float,
+    eleType :: String
+  }
+  deriving (Show, Generic)
+
+instance FromJSON EnemyList
+instance FromJSON EnemyListEnemy

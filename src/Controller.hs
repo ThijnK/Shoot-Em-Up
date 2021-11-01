@@ -11,6 +11,7 @@ import System.Random
 import Data.List
 import Data.Char
 import Data.Maybe
+import GHC.Float.RealFracMethods (int2Float)
 
 -- secs * speed to normalize
 
@@ -20,9 +21,12 @@ step secs gstate@GameState{paused, player, downKeys, explosions}
   | paused = return gstate -- No change to gamestate if game is paused
   | otherwise = return gstate'
   where
-    gstate' = updatePlayerBullets gstate{deltaTime = secs, player = p, explosions = e}
+    gstate' = updatePlayerBullets gstate {deltaTime = secs, timeElapsed = t, player = p, explosions = e, obstacles = obs, enemyList = eList, generator = newGen}
+    t = timeElapsed + secs
     p = updatePlayer secs player downKeys
     e = updateExplosions secs explosions
+    obs = map move obs_
+    (eList@(EnemyList enemies), obs_, newGen) = spawnEnemies gstate
 
 -- | Update objects
 updatePlayer :: Float -> Player -> [Char] -> Player
@@ -62,6 +66,30 @@ updateExplosions secs = mapMaybe animateExplosion where
   animateExplosion e@Explosion{explosionAnim} = case animateM secs explosionAnim of
     Nothing -> Nothing
     Just a  -> Just e{explosionAnim = a}
+
+spawnEnemies :: GameState -> (EnemyList, [Obstacle], StdGen)
+spawnEnemies gstate@GameState{timeElapsed, enemyList, obstacles, generator}
+  | timeElapsed > enemyTimer = (newList, newObstacle ++ obstacles, newGen)
+  | otherwise = (enemyList, obstacles, generator)
+  where
+    (enemyTimer, enemyType, newList) = enemyInfo enemyList
+    -- Future proof :OOO
+    -- newEnemy :: [Enemy]
+    -- newEnemy
+    --   | enemyType == "corvette" = []
+    --   | otherwise = []
+    newObstacle :: [Obstacle]
+    newObstacle | enemyType == "Obstacle" = [defaultObstacle]
+                | otherwise = []
+
+    range = (-250, 250)
+    (iRandYPos, newGen) = randomR range generator
+    randYPos = int2Float iRandYPos
+
+-- Returns enemy info if at least one enemy has yet to be spawned
+enemyInfo :: EnemyList -> (Float, String, EnemyList)
+enemyInfo eList@(EnemyList (EnemyListEnemy enemyTimer enemyType : xs)) = (enemyTimer, enemyType, EnemyList xs)
+enemyInfo eList@(EnemyList []) = (1.0 / 0, "", eList)
 
 -- | Handle user input
 input :: Event -> GameState -> IO GameState
