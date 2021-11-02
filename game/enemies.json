@@ -2,6 +2,15 @@
 	"enemies": [
 		{ "eleTime": 1.5, "eleType": "Obstacle" },
 		{ "eleTime": 3.5, "eleType": "Obstacle" },
-		{ "eleTime": 5.5, "eleType": "Obstacle" }
+		{ "eleTime": 3.5, "eleType": "Turret" },
+		{ "eleTime": 3.6, "eleType": "Turret" },
+		{ "eleTime": 3.7, "eleType": "Turret" },
+		{ "eleTime": 3.8, "eleType": "Turret" },
+		{ "eleTime": 3.9, "eleType": "Turret" },
+		{ "eleTime": 4.1, "eleType": "Turret" },
+		{ "eleTime": 4.2, "eleType": "Turret" },
+		{ "eleTime": 4.3, "eleType": "Turret" },
+		{ "eleTime": 5.5, "eleType": "Obstacle" },
+		{ "eleTime": 6.5, "eleType": "Turret" }
 	]
 }

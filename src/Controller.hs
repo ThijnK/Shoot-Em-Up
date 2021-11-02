@@ -18,17 +18,16 @@ import Graphics.Gloss.Data.Vector
 
 -- | Handle one iteration of the game
 step :: Float -> GameState -> IO GameState
-step secs gstate@GameState{paused, timeElapsed, player, turrets, enemyBullets, downKeys, explosions}
+step secs gstate@GameState{paused, timeElapsed, player, obstacles, enemyBullets, downKeys, explosions}
   | paused = return gstate -- No change to gamestate if game is paused
   | otherwise = return gstate'
   where
-    gstate' = (updateTurrets . updatePlayerBullets) gstate {deltaTime = secs, timeElapsed = t, player = p, enemyBullets = ebs, explosions = e, obstacles = obs, enemyList = eList, generator = newGen}
+    gstate' = (spawnEnemies . updateTurrets . updatePlayerBullets) gstate {deltaTime = secs, timeElapsed = t, player = p, enemyBullets = ebs, explosions = e, obstacles = obs}
     t = timeElapsed + secs
     p = updatePlayer secs player downKeys
     e = updateExplosions secs explosions
     ebs = map (move secs) enemyBullets
-    obs = map (move secs) obs'
-    (eList@(EnemyList enemies), obs', newGen) = spawnEnemies gstate
+    obs = map (move secs) obstacles
 
 -- | Update player
 updatePlayer :: Float -> Player -> [Char] -> Player
@@ -63,28 +62,37 @@ updateExplosions secs = mapMaybe animateExplosion where
 
 -- | Update turrets
 updateTurrets :: GameState -> GameState
-updateTurrets gstate@GameState{deltaTime, player = Player{playerPos = (px,py)}, turrets, enemyBullets} 
-  = gstate{turrets = map updateTurret turrets, enemyBullets = foldr turretFire [] turrets ++ enemyBullets} where
+updateTurrets gstate@GameState{deltaTime, player = Player{playerPos = (px,py)}, turrets, enemyBullets, generator} 
+  = gstate{turrets = map updateTurret turrets, enemyBullets = foldr turretFire [] turrets ++ enemyBullets, generator = newGen} where
     updateTurret :: Turret -> Turret
     updateTurret t@Turret{turretFr = FireRate fr last, turretAnim}
       | last + deltaTime > fr = move deltaTime t{turretFr = FireRate fr 0, turretAnim = animateR deltaTime turretAnim}
       | otherwise = move deltaTime t{turretFr = FireRate fr (last + deltaTime), turretAnim = animateR deltaTime turretAnim}
     turretFire :: Turret -> [EnemyBullet] -> [EnemyBullet]
     turretFire Turret{turretPos = tp@(tx,ty), turretFr = FireRate fr last} acc
-      | last + deltaTime > fr = EnemyBullet tp (argV (px - tx, py - ty)) 10 3000 (10,2): acc
+      | last + deltaTime > fr = EnemyBullet tp (atan2 ((py + randVal)-ty) ((px + randVal)-tx)) 500 666 (10,2): acc
       | otherwise = acc
+    
+    range :: (Float, Float) -- random bullet variation
+    range = (-20, 20)
+    (randVal, newGen) = randomR range generator
 
-spawnEnemies :: GameState -> (EnemyList, [Obstacle], StdGen)
-spawnEnemies gstate@GameState{timeElapsed, enemyList, obstacles, generator}
-  | timeElapsed > enemyTimer = (newList, newObstacle ++ obstacles, newGen)
-  | otherwise = (enemyList, obstacles, generator)
+spawnEnemies :: GameState -> GameState --(EnemyList, [Obstacle], [Turret], StdGen)
+spawnEnemies gstate@GameState{timeElapsed, enemyList, obstacles, turrets, generator}
+  | timeElapsed > enemyTimer = gstate'
+  | otherwise = gstate
   where
+    gstate' = gstate {enemyList = newList, obstacles = newObstacle ++ obstacles, turrets = newTurret ++ turrets, generator = newGen}
     (enemyTimer, enemyType, newList) = enemyInfo enemyList
     -- Future proof :OOO
     -- newEnemy :: [Enemy]
     -- newEnemy
     --   | enemyType == "corvette" = []
     --   | otherwise = []
+    newTurret   :: [Turret]
+    newTurret | enemyType == "Turret" = [defaultTurret (500, randYPos)]
+              | otherwise = []
+
     newObstacle :: [Obstacle]
     newObstacle | enemyType == "Obstacle" = [defaultObstacle (500, randYPos)]
                 | otherwise = []

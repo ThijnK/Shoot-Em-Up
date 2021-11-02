@@ -19,4 +19,6 @@ viewPure gstate@GameState{player, turrets, drones, playerBullets, enemyBullets, 
               ++ map (toPicture sprites) obstacles 
               ++ map (toPicture sprites) explosions
               ++ [toPicture sprites player]
+              ++ map drawHbox enemyBullets
+              ++ map drawHbox turrets
             )
