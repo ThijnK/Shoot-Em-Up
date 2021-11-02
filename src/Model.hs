@@ -66,7 +66,7 @@ defaultExplosion :: Point -> Explosion
 defaultExplosion pos = Explosion pos 0 (Animation 0 10 0.075 0)
 
 defaultTurret :: Point -> Turret
-defaultTurret pos = Turret pos pi 100 100 (FireRate 0.2 0) (8,10) (Animation 0 4 0.2 0)
+defaultTurret pos = Turret pos pi 100 50 (FireRate 0.2 0) (8,10) (Animation 0 4 0.2 0)
 
 defaultPlayerBullet :: Point -> PlayerBullet
 defaultPlayerBullet pos = PlayerBullet pos 0 10 3000 (10,2)

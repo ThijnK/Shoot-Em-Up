@@ -42,18 +42,16 @@ updatePlayer secs player@Player{playerPos = (x,y), playerSpeed, playerAnim} down
     checkKey 'd' (x,y) = (x + playerSpeed * secs, y)
     checkKey _   acc   = acc
 
+
+
 -- | Update player bullets
 updatePlayerBullets :: GameState -> GameState
 updatePlayerBullets gstate@GameState{deltaTime, playerBullets, explosions} = foldr shootPlayerBullet gstate{playerBullets = pbs} pbs where
   pbs = map (move deltaTime) playerBullets
   shootPlayerBullet :: PlayerBullet -> GameState -> GameState
-  shootPlayerBullet pb gstate = case shoot pb ds of
-    (Miss, _)      -> filter' pb gstate
-    (Damage i, Just o@Obstacle{}) -> (destroy pb . update i o) gstate
-    --(Damage i, Just x) -> undefined -- if x is an enemy: i is the index in the list ds, so convert i to index in list of enemies
-    (Kill, Just o@Obstacle{obstaclePos}) -> (destroy pb . destroy o) gstate{explosions = defaultExplosion obstaclePos : explosions}
-    (_, _)         -> gstate
-  ds = obstacles gstate -- ++ turrets gstate ++ drones gstate
+  shootPlayerBullet pb gstate@GameState{obstacles, turrets, drones} = case shootBullet pb gstate obstacles of
+    (True, gstate') -> snd (shootBullet pb gstate' turrets)
+    (False, gstate') -> gstate'
 
 -- | Update explosions
 updateExplosions :: Float -> [Explosion] -> [Explosion]
@@ -123,11 +121,33 @@ fireBullet gstate@GameState{player, playerBullets} = gstate {playerBullets = def
 
 -- | General helper functions
 
+
+
+shootBullet :: (Shootable a, Destructible a, Destructible b) => a -> GameState -> [b] -> (Bool, GameState)
+shootBullet b gstate@GameState{explosions} ds = case shoot b ds of
+  (Miss, _) -> filter' b gstate
+  (Damage i, Just d) -> (False, (destroy b . update i d) gstate)
+  (Kill, Just d) -> (False, (destroy b . destroy d) gstate{explosions = defaultExplosion (getPosition d) : explosions})
+  (_, _) -> (True, gstate)
+
+
+  -- shootBullet pb gstate = case shoot pb ds of
+  --   (Miss, _)      -> filter' pb gstate
+  --   (Damage i, Just o@Obstacle{}) -> (destroy pb . update i o) gstate
+  --   --(Damage i, Just x) -> undefined -- if x is an enemy: i is the index in the list ds, so convert i to index in list of enemies
+  --   (Kill, Just o@Obstacle{obstaclePos}) -> (destroy pb . destroy o) gstate{explosions = defaultExplosion obstaclePos : explosions}
+  --   (_, _)         -> gstate
+
+-- Replace the element at the given index of the list with the given value
+replace :: Int -> a -> [a] -> [a]
+replace index x xs = zs ++ (x:ys)
+  where (zs, _:ys) = splitAt index xs
+
 -- Remove an object from gamestate if it's outside of bounds
-filter' :: Destructible a => a -> GameState -> GameState
+filter' :: Destructible a => a -> GameState -> (Bool, GameState)
 filter' a gstate
-  | x > 550 || x < -550 = destroy a gstate
-  | otherwise = gstate
+  | x > 550 || x < -550 = (False, destroy a gstate)
+  | otherwise = (True, gstate)
   where (x,_) = getPosition a
 
 -- Repeats animation when it reaches the end

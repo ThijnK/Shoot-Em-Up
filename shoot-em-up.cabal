@@ -13,7 +13,8 @@ executable shoot-em-up
                        gloss,
                        random,
                        aeson,
-                       bytestring
+                       bytestring,
+                       mtl
   other-modules:
     Controller
     Model
