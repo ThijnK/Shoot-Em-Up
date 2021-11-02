@@ -48,7 +48,7 @@ initialState sprites enemyList generator = GameState {
     playerHbox = (13, 8),
     playerAnim = Animation 0 8 0.2 0
   },
-  turrets       = [defaultTurret (0,0)],
+  turrets       = [],
   drones        = [],
   playerBullets = [],
   enemyBullets  = [],
@@ -60,13 +60,13 @@ initialState sprites enemyList generator = GameState {
 }
 
 defaultObstacle :: Point -> Obstacle
-defaultObstacle pos = Obstacle pos pi 100 50 (10, 10)
+defaultObstacle pos = Obstacle pos 0 (-10) 50 (10, 10)
 
 defaultExplosion :: Point -> Explosion
 defaultExplosion pos = Explosion pos 0 (Animation 0 10 0.075 0)
 
 defaultTurret :: Point -> Turret
-defaultTurret pos = Turret pos pi 100 100 (FireRate 0.2 0) (8,10) (Animation 0 4 0.2 0)
+defaultTurret pos = Turret pos 0 100 (-10) (FireRate 0.2 0) (8, 10) (Animation 0 4 0.2 0)
 
 defaultPlayerBullet :: Point -> PlayerBullet
 defaultPlayerBullet pos = PlayerBullet pos 0 10 3000 (10,2)
@@ -240,7 +240,7 @@ instance Drawable Explosion where
   getSprite Sprites{explosionSprites} Explosion{explosionAnim = Animation index _ _ _} = explosionSprites !! index
 
 draw :: Float -> Point -> Picture -> Picture
-draw orientation (x,y) = translate x y . rotate (radToDeg orientation)
+draw orientation (x,y) = translate x y . rotate (radToDeg (-orientation)) -- credits to student no. 5923402482 (J. S. C. Lee)
 
 drawHbox :: (Positionable a, Collideable a) => a -> Picture
 drawHbox a = color red (line [(x-w,y-h),(x+w,y-h),(x+w,y+h),(x-w,y+h),(x-w,y-h)]) where
