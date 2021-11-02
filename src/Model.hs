@@ -44,7 +44,7 @@ initialState sprites enemyList generator = GameState {
     playerOrient = 0,
     playerHp = 100,
     playerSpeed = 300,
-    playerFr = FireRate 0.2 0,
+    playerFr = FireRate 0.10 0,
     playerHbox = (13, 8),
     playerAnim = Animation 0 8 0.2 0
   },
@@ -66,10 +66,10 @@ defaultExplosion :: Point -> Explosion
 defaultExplosion pos = Explosion pos 0 (Animation 0 10 0.075 0)
 
 defaultTurret :: Point -> Turret
-defaultTurret pos = Turret pos 0 100 (-10) (FireRate 0.2 0) (8, 10) (Animation 0 4 0.2 0)
+defaultTurret pos = Turret pos 0 100 (-10) (FireRate 0.5 0) (8, 10) (Animation 0 4 0.2 0)
 
 defaultPlayerBullet :: Point -> PlayerBullet
-defaultPlayerBullet pos = PlayerBullet pos 0 10 3000 (10,2)
+defaultPlayerBullet pos = PlayerBullet pos 0 10 1000 (10,2)
 
 data FireRate = FireRate Float Float -- fireRate(1 / bulletsPerSecond) secondsSinceLastShot
   deriving Eq
@@ -279,7 +279,7 @@ instance Destructible Player where
   applyDamage player@Player {playerHp} damage
     | playerHp - damage <= 0 = (False, player{playerHp = playerHp - damage})
     | otherwise = (True, player{playerHp = playerHp - damage})
-  destroy p gstate = undefined
+  destroy p gstate = gstate{paused = True} -- TO DO: make this indicate game over
   update _ p gstate = gstate{player = p}
 
 instance Destructible Turret where
@@ -335,17 +335,22 @@ instance Moveable EnemyBullet where
 
 -- | Shootable type class
 class (Positionable a, Collideable a) => Shootable a where
+  getDmg :: a -> Int
   shoot :: Destructible b => a -> [b] -> (HitInfo, Maybe b)
-
-data HitInfo = Miss | Damage Int | Kill
-
-instance Shootable PlayerBullet where
-  shoot pb@PlayerBullet{pbDmg} xs = case find (collide pb) xs of
-    Just x -> case applyDamage x pbDmg of
+  shoot b xs = case find (collide b) xs of
+    Just x -> case applyDamage x (getDmg b) of
       (True, y)  -> (Damage i, Just y)
       (False, y) -> (Kill, Just y)
       where (Just i) = elemIndex x xs
     Nothing -> (Miss, Nothing)
+
+data HitInfo = Miss | Damage Int | Kill
+
+instance Shootable PlayerBullet where
+  getDmg PlayerBullet{pbDmg} = pbDmg
+
+instance Shootable EnemyBullet where
+  getDmg EnemyBullet{ebDmg} = ebDmg
 
 
 {-    __        __

@@ -18,21 +18,20 @@ import Graphics.Gloss.Data.Vector
 
 -- | Handle one iteration of the game
 step :: Float -> GameState -> IO GameState
-step secs gstate@GameState{paused, timeElapsed, player, obstacles, enemyBullets, downKeys, explosions}
+step secs gstate@GameState{paused, timeElapsed, player, obstacles, downKeys, explosions}
   | paused = return gstate -- No change to gamestate if game is paused
   | otherwise = return gstate'
   where
-    gstate' = (spawnEnemies . updateTurrets . updatePlayerBullets) gstate {deltaTime = secs, timeElapsed = t, player = p, enemyBullets = ebs, explosions = e, obstacles = obs}
-    t = timeElapsed + secs
+    gstate' = (spawnEnemies . updateTurrets . updateEnemyBullets . updatePlayerBullets) 
+      gstate {deltaTime = secs, timeElapsed = timeElapsed + secs, player = p, explosions = e, obstacles = obs}
     p = updatePlayer secs player downKeys
     e = updateExplosions secs explosions
-    ebs = map (move secs) enemyBullets
     obs = map (move secs) obstacles
 
 -- | Update player
 updatePlayer :: Float -> Player -> [Char] -> Player
-updatePlayer secs player@Player{playerPos = (x,y), playerSpeed, playerAnim} downKeys
-  = player {playerPos = (clamp (x + mx) (-500,500), clamp (y + my) (-300,300)), playerAnim = animateR secs playerAnim} where
+updatePlayer secs player@Player{playerPos = (x,y), playerSpeed, playerFr = FireRate fr last, playerAnim} downKeys
+  = player {playerPos = (clamp (x + mx) (-500,500), clamp (y + my) (-300,300)), playerFr = FireRate fr (last + secs), playerAnim = animateR secs playerAnim} where
     (mx,my) = foldr checkKey (0,0) downKeys -- Move based on the keys currently being held down
     checkKey :: Char -> (Float, Float) -> (Float, Float)
     checkKey 's' (x,y) = (x, y - playerSpeed * secs)
@@ -41,16 +40,27 @@ updatePlayer secs player@Player{playerPos = (x,y), playerSpeed, playerAnim} down
     checkKey 'd' (x,y) = (x + playerSpeed * secs, y)
     checkKey _   acc   = acc
 
-
-
 -- | Update player bullets
 updatePlayerBullets :: GameState -> GameState
-updatePlayerBullets gstate@GameState{deltaTime, playerBullets, explosions} = foldr shootPlayerBullet gstate{playerBullets = pbs} pbs where
+updatePlayerBullets gstate@GameState{deltaTime, playerBullets} = foldr shootPlayerBullet gstate{playerBullets = pbs} pbs where
   pbs = map (move deltaTime) playerBullets
   shootPlayerBullet :: PlayerBullet -> GameState -> GameState
-  shootPlayerBullet pb gstate@GameState{obstacles, turrets, drones} = case shootBullet pb gstate obstacles of
-    (True, gstate') -> snd (shootBullet pb gstate' turrets)
-    (False, gstate') -> gstate'
+  shootPlayerBullet pb gstate@GameState{obstacles, turrets, drones} = 
+    case shootBullet pb gstate obstacles of
+      (True, gstate') -> case shootBullet pb gstate' turrets of
+        (True, gstate'')  -> snd (shootBullet pb gstate'' drones)
+        (False, gstate'') -> gstate''
+      (False, gstate') -> gstate'
+
+-- | Update enemy bullets
+updateEnemyBullets :: GameState -> GameState
+updateEnemyBullets gstate@GameState{deltaTime, enemyBullets} = foldr shootEnemyBullet gstate{enemyBullets = ebs} ebs where
+  ebs = map (move deltaTime) enemyBullets
+  shootEnemyBullet :: EnemyBullet -> GameState -> GameState
+  shootEnemyBullet eb gstate@GameState{player, obstacles} = 
+    case shootBullet eb gstate [player] of
+      (True, gstate') -> snd (shootBullet eb gstate' obstacles)
+      (False, gstate') -> gstate'
 
 -- | Update explosions
 updateExplosions :: Float -> [Explosion] -> [Explosion]
@@ -70,7 +80,7 @@ updateTurrets gstate@GameState{deltaTime, player = Player{playerPos = (px,py)}, 
       | otherwise = move deltaTime t{turretFr = FireRate fr (last + deltaTime), turretAnim = animateR deltaTime turretAnim}
     turretFire :: Turret -> [EnemyBullet] -> [EnemyBullet]
     turretFire Turret{turretPos = tp@(tx,ty), turretFr = FireRate fr last} acc
-      | last + deltaTime > fr = EnemyBullet tp (atan2 ((py + randVal)-ty) ((px + randVal)-tx)) 500 666 (10,2): acc
+      | last + deltaTime > fr = EnemyBullet tp (atan2 ((py + randVal)-ty) ((px + randVal)-tx)) 500 666 (10,2) : acc
       | otherwise = acc
     
     range :: (Float, Float) -- random bullet variation
@@ -111,7 +121,6 @@ input :: Event -> GameState -> IO GameState
 input e gstate = return (inputKey e gstate)
 
 inputKey :: Event -> GameState -> GameState
-inputKey (EventKey (SpecialKey KeySpace) Up _ _) gstate = fireBullet gstate
 inputKey (EventKey (SpecialKey KeyEsc) Up _ _) gstate@GameState{paused} = gstate{paused = not paused}
 inputKey (EventKey (Char c) d _ _) gstate
   | c == 'w' || c == 'a' || c == 's' || c == 'd' = updateKeys d
@@ -120,12 +129,15 @@ inputKey (EventKey (Char c) d _ _) gstate
     updateKeys :: KeyState -> GameState
     updateKeys Down = gstate { downKeys = c : downKeys gstate }
     updateKeys Up   = gstate { downKeys = delete c (downKeys gstate) }
-inputKey (EventKey (MouseButton LeftButton) Up _ _) gstate = fireBullet gstate
+inputKey (EventKey (MouseButton LeftButton) Up _ _) gstate@GameState{deltaTime, player, playerBullets} 
+  = let (p, pbs) = firePlayer deltaTime player in gstate{player = p, playerBullets = pbs ++ playerBullets}
 inputKey _ gstate = gstate
 
-fireBullet :: GameState -> GameState
-fireBullet gstate@GameState{player, playerBullets} = gstate {playerBullets = defaultPlayerBullet origin : playerBullets} where
-  origin = playerPos player -- take the player's position as the origin of the bullet
+firePlayer :: Float -> Player -> (Player, [PlayerBullet])
+firePlayer secs p@Player{playerPos, playerFr = FireRate fr last}
+  | last + secs > fr = (p{playerFr = FireRate fr 0}, [defaultPlayerBullet playerPos])
+  | otherwise = (p, [])
+
 
 -- | General helper functions
 
