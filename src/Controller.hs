@@ -14,24 +14,22 @@ import Data.Maybe
 import GHC.Float.RealFracMethods (int2Float)
 import Graphics.Gloss.Data.Vector
 
--- secs * speed to normalize
-
 -- | Handle one iteration of the game
 step :: Float -> GameState -> IO GameState
-step secs gstate@GameState{paused, timeElapsed, player, obstacles, downKeys, explosions}
+step secs gstate@GameState{paused, timeElapsed, player, meteors, downKeys, explosions}
   | paused = return gstate -- No change to gamestate if game is paused
   | otherwise = return gstate'
   where
-    gstate' = (spawnEnemies . updateTurrets . updateEnemyBullets . updatePlayerBullets) 
-      gstate {deltaTime = secs, timeElapsed = timeElapsed + secs, player = p, explosions = e, obstacles = obs}
+    gstate' = (spawnEnemies . updateTurrets . updateDrones . updateEnemyBullets . updatePlayerBullets) 
+      gstate {deltaTime = secs, timeElapsed = timeElapsed + secs, player = p, explosions = e, meteors = obs}
     p = updatePlayer secs player downKeys
     e = updateExplosions secs explosions
-    obs = map (move secs) obstacles
+    obs = map (move secs) meteors
 
 -- | Update player
 updatePlayer :: Float -> Player -> [Char] -> Player
 updatePlayer secs player@Player{playerPos = (x,y), playerSpeed, playerFr = FireRate fr last, playerAnim} downKeys
-  = player {playerPos = (clamp (x + mx) (-500,500), clamp (y + my) (-300,300)), playerFr = FireRate fr (last + secs), playerAnim = animateR secs playerAnim} where
+  = player {playerPos = (clamp (x + mx) (-500,0), clamp (y + my) (-300,300)), playerFr = FireRate fr (last + secs), playerAnim = animateR secs playerAnim} where
     (mx,my) = foldr checkKey (0,0) downKeys -- Move based on the keys currently being held down
     checkKey :: Char -> (Float, Float) -> (Float, Float)
     checkKey 's' (x,y) = (x, y - playerSpeed * secs)
@@ -45,8 +43,8 @@ updatePlayerBullets :: GameState -> GameState
 updatePlayerBullets gstate@GameState{deltaTime, playerBullets} = foldr shootPlayerBullet gstate{playerBullets = pbs} pbs where
   pbs = map (move deltaTime) playerBullets
   shootPlayerBullet :: PlayerBullet -> GameState -> GameState
-  shootPlayerBullet pb gstate@GameState{obstacles, turrets, drones} = 
-    case shootBullet pb gstate obstacles of
+  shootPlayerBullet pb gstate@GameState{meteors, turrets, drones} = 
+    case shootBullet pb gstate meteors of
       (True, gstate') -> case shootBullet pb gstate' turrets of
         (True, gstate'')  -> snd (shootBullet pb gstate'' drones)
         (False, gstate'') -> gstate''
@@ -57,9 +55,9 @@ updateEnemyBullets :: GameState -> GameState
 updateEnemyBullets gstate@GameState{deltaTime, enemyBullets} = foldr shootEnemyBullet gstate{enemyBullets = ebs} ebs where
   ebs = map (move deltaTime) enemyBullets
   shootEnemyBullet :: EnemyBullet -> GameState -> GameState
-  shootEnemyBullet eb gstate@GameState{player, obstacles} = 
+  shootEnemyBullet eb gstate@GameState{player, meteors} = 
     case shootBullet eb gstate [player] of
-      (True, gstate') -> snd (shootBullet eb gstate' obstacles)
+      (True, gstate') -> snd (shootBullet eb gstate' meteors)
       (False, gstate') -> gstate'
 
 -- | Update explosions
@@ -72,27 +70,45 @@ updateExplosions secs = mapMaybe animateExplosion where
 
 -- | Update turrets
 updateTurrets :: GameState -> GameState
-updateTurrets gstate@GameState{deltaTime, player = Player{playerPos = (px,py)}, turrets, enemyBullets, generator} 
-  = gstate{turrets = map updateTurret turrets, enemyBullets = foldr turretFire [] turrets ++ enemyBullets, generator = newGen} where
+updateTurrets gstate@GameState{deltaTime, player = Player{playerPos}, turrets, enemyBullets, generator} 
+  = gstate{turrets = (filter withinBounds . map updateTurret) turrets, enemyBullets = foldr turretFire [] turrets ++ enemyBullets, generator = newGen} where
     updateTurret :: Turret -> Turret
     updateTurret t@Turret{turretFr = FireRate fr last, turretAnim}
       | last + deltaTime > fr = move deltaTime t{turretFr = FireRate fr 0, turretAnim = animateR deltaTime turretAnim}
       | otherwise = move deltaTime t{turretFr = FireRate fr (last + deltaTime), turretAnim = animateR deltaTime turretAnim}
     turretFire :: Turret -> [EnemyBullet] -> [EnemyBullet]
-    turretFire Turret{turretPos = tp@(tx,ty), turretFr = FireRate fr last} acc
-      | last + deltaTime > fr = EnemyBullet tp (atan2 ((py + randVal)-ty) ((px + randVal)-tx)) 500 666 (10,2) : acc
+    turretFire Turret{turretPos, turretFr = FireRate fr last} acc
+      | last + deltaTime > fr = defaultEnemyBullet turretPos (turretBulletOrient playerPos turretPos) : acc
       | otherwise = acc
-    
-    range :: (Float, Float) -- random bullet variation
-    range = (-20, 20)
-    (randVal, newGen) = randomR range generator
+    turretBulletOrient :: Point -> Point -> Float
+    turretBulletOrient (px, py) (tx, ty)
+      | angle > -0.75 * pi && angle < 0 = -0.75 * pi
+      | angle < 0.75 * pi && angle > 0  = 0.75 * pi
+      | otherwise                       = angle
+      where angle = atan2 ((py + randVal)-ty) ((px + randVal)-tx)
+    (randVal, newGen) = randomR (-20, 20) generator
 
-spawnEnemies :: GameState -> GameState --(EnemyList, [Obstacle], [Turret], StdGen)
-spawnEnemies gstate@GameState{timeElapsed, enemyList, obstacles, turrets, generator}
+-- | Update drones
+updateDrones :: GameState -> GameState
+updateDrones gstate@GameState{deltaTime, drones, enemyBullets} 
+  = gstate{drones = (filter withinBounds . map updateDrone) drones, enemyBullets = foldr droneFire [] drones ++ enemyBullets} where
+    updateDrone :: Drone -> Drone
+    updateDrone d@Drone{droneFr = FireRate fr last, droneAnim}
+      | last + deltaTime > fr = move deltaTime d{droneFr = FireRate fr 0, droneAnim = animateR deltaTime droneAnim}
+      | otherwise = move deltaTime d{droneFr = FireRate fr (last + deltaTime), droneAnim = animateR deltaTime droneAnim}
+    droneFire :: Drone -> [EnemyBullet] -> [EnemyBullet]
+    droneFire Drone{dronePos, droneFr = FireRate fr last} acc
+      | last + deltaTime > fr = droneBullets dronePos ++ acc
+      | otherwise = acc
+    droneBullets :: Point -> [EnemyBullet]
+    droneBullets pos = map (defaultEnemyBullet pos) [0.75 * pi, 0.25 * pi, -0.25 * pi, -0.75 * pi, pi, 0, 0.5 * pi, -0.5 * pi]
+
+spawnEnemies :: GameState -> GameState --(EnemyList, [Meteor], [Turret], StdGen)
+spawnEnemies gstate@GameState{timeElapsed, enemyList, meteors, turrets, drones, generator}
   | timeElapsed > enemyTimer = gstate'
   | otherwise = gstate
   where
-    gstate' = gstate {enemyList = newList, obstacles = newObstacle ++ obstacles, turrets = newTurret ++ turrets, generator = newGen}
+    gstate' = gstate {enemyList = newList, meteors = newMeteor ++ meteors, turrets = newTurret ++ turrets, drones = newDrone ++ drones, generator = newGen}
     (enemyTimer, enemyType, newList) = enemyInfo enemyList
     -- Future proof :OOO
     -- newEnemy :: [Enemy]
@@ -103,8 +119,13 @@ spawnEnemies gstate@GameState{timeElapsed, enemyList, obstacles, turrets, genera
     newTurret | enemyType == "Turret" = [defaultTurret (500, randYPos)]
               | otherwise = []
 
-    newObstacle :: [Obstacle]
-    newObstacle | enemyType == "Obstacle" = [defaultObstacle (500, randYPos)]
+    newDrone :: [Drone]
+    newDrone
+      | enemyType == "Drone" = [defaultDrone (500, randYPos)]
+      | otherwise = []
+    
+    newMeteor :: [Meteor]
+    newMeteor | enemyType == "Meteor" = [defaultMeteor (500, randYPos)]
                 | otherwise = []
 
     range = (-250, 250)
@@ -141,22 +162,13 @@ firePlayer secs p@Player{playerPos, playerFr = FireRate fr last}
 
 -- | General helper functions
 
-
-
+-- Checks collision for a given bullet and a list of obstacles it can hit
 shootBullet :: (Shootable a, Destructible a, Destructible b) => a -> GameState -> [b] -> (Bool, GameState)
 shootBullet b gstate@GameState{explosions} ds = case shoot b ds of
   (Miss, _) -> filter' b gstate
   (Damage i, Just d) -> (False, (destroy b . update i d) gstate)
   (Kill, Just d) -> (False, (destroy b . destroy d) gstate{explosions = defaultExplosion (getPosition d) : explosions})
   (_, _) -> (True, gstate)
-
-
-  -- shootBullet pb gstate = case shoot pb ds of
-  --   (Miss, _)      -> filter' pb gstate
-  --   (Damage i, Just o@Obstacle{}) -> (destroy pb . update i o) gstate
-  --   --(Damage i, Just x) -> undefined -- if x is an enemy: i is the index in the list ds, so convert i to index in list of enemies
-  --   (Kill, Just o@Obstacle{obstaclePos}) -> (destroy pb . destroy o) gstate{explosions = defaultExplosion obstaclePos : explosions}
-  --   (_, _)         -> gstate
 
 -- Replace the element at the given index of the list with the given value
 replace :: Int -> a -> [a] -> [a]
@@ -166,8 +178,14 @@ replace index x xs = zs ++ (x:ys)
 -- Remove an object from gamestate if it's outside of bounds
 filter' :: Destructible a => a -> GameState -> (Bool, GameState)
 filter' a gstate
-  | x > 550 || x < -550 = (False, destroy a gstate)
+  | not (withinBounds a) = (False, destroy a gstate)
   | otherwise = (True, gstate)
+  where (x,_) = getPosition a
+
+withinBounds :: Positionable a => a -> Bool
+withinBounds a
+  | x > 550 || x < -550 = False
+  | otherwise = True
   where (x,_) = getPosition a
 
 -- Repeats animation when it reaches the end

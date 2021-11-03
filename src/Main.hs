@@ -43,7 +43,7 @@ loadSprites = do player1     <- loadBMP "assets/player-1.bmp"
                  bullet1     <- loadBMP "assets/bullet-1.bmp"
                  bullet2     <- loadBMP "assets/bullet-2.bmp"
                  --bullet3     <- loadBMP "assets/bullet-3.bmp"
-                 obstacle    <- loadBMP "assets/obstacle.bmp"
+                 meteor      <- loadBMP "assets/meteor.bmp" -- credits to AX Assets: https://axassets.itch.io/spaceship-simple-assets
                  explosion1  <- loadBMP "assets/explosion-01.bmp"
                  explosion2  <- loadBMP "assets/explosion-02.bmp"
                  explosion3  <- loadBMP "assets/explosion-03.bmp"
@@ -59,7 +59,7 @@ loadSprites = do player1     <- loadBMP "assets/player-1.bmp"
                  let turret = [turret1, turret2, turret3, turret4]
                  let drone = [drone1, drone2, drone3, drone2]
                  let explosion = [explosion1, explosion2, explosion3, explosion4, explosion5, explosion6, explosion7, explosion8, explosion9, explosion10, explosion11]
-                 return (Sprites player bullet1 bullet2 obstacle turret drone explosion)
+                 return (Sprites player bullet1 bullet2 meteor turret drone explosion)
 
 decodeEL :: BS.ByteString -> EnemyList
 decodeEL x = case decode x of

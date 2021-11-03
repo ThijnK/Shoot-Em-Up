@@ -25,7 +25,7 @@ data GameState = GameState {
   drones        :: [Drone],
   playerBullets :: [PlayerBullet],
   enemyBullets  :: [EnemyBullet],
-  obstacles     :: [Obstacle],
+  meteors       :: [Meteor],
   explosions    :: [Explosion],
   sprites       :: Sprites,
   enemyList     :: EnemyList,
@@ -52,24 +52,30 @@ initialState sprites enemyList generator = GameState {
   drones        = [],
   playerBullets = [],
   enemyBullets  = [],
-  obstacles     = [defaultObstacle (0,200)],
+  meteors     = [defaultMeteor (0,200)],
   explosions    = [],
   sprites       = sprites,
   enemyList     = enemyList,
   generator     = generator
 }
 
-defaultObstacle :: Point -> Obstacle
-defaultObstacle pos = Obstacle pos 0 (-10) 50 (10, 10)
+defaultMeteor :: Point -> Meteor
+defaultMeteor pos = Meteor pos 0 (-80) 50 (12, 12) -- Negative speed so they move to the left
 
 defaultExplosion :: Point -> Explosion
 defaultExplosion pos = Explosion pos 0 (Animation 0 10 0.075 0)
 
 defaultTurret :: Point -> Turret
-defaultTurret pos = Turret pos 0 100 (-10) (FireRate 0.5 0) (8, 10) (Animation 0 4 0.2 0)
+defaultTurret pos = Turret pos 0 100 (-30) (FireRate 0.5 0) (8, 10) (Animation 0 4 0.2 0)
+
+defaultDrone :: Point -> Drone
+defaultDrone pos = Drone pos 0 100 (-35) (FireRate 1 0) (8, 10) (Animation 0 4 0.2 0)
 
 defaultPlayerBullet :: Point -> PlayerBullet
 defaultPlayerBullet pos = PlayerBullet pos 0 10 1000 (10,2)
+
+defaultEnemyBullet :: Point -> Float -> EnemyBullet
+defaultEnemyBullet pos orient = EnemyBullet pos orient 5 666 (10,2)
 
 data FireRate = FireRate Float Float -- fireRate(1 / bulletsPerSecond) secondsSinceLastShot
   deriving Eq
@@ -80,7 +86,7 @@ data Sprites  = Sprites {
   playerSprites    :: [Picture],
   pBulletSprite    :: Picture,
   eBulletSprite    :: Picture,
-  obstacleSprite   :: Picture,
+  meteorSprite   :: Picture,
   turretSprites    :: [Picture],
   droneSprites     :: [Picture],
   explosionSprites :: [Picture]
@@ -138,12 +144,12 @@ data EnemyBullet = EnemyBullet {
   ebHbox   :: Point 
 } deriving Eq
 
-data Obstacle = Obstacle {
-  obstaclePos    :: Point,
-  obstacleOrient :: Float,
-  obstacleSpeed  :: Float,
-  obstacleHp     :: Int,
-  obstacleHbox   :: Point
+data Meteor = Meteor {
+  meteorPos    :: Point,
+  meteorOrient :: Float,
+  meteorSpeed  :: Float,
+  meteorHp     :: Int,
+  meteorHbox   :: Point
 } deriving Eq
 
 {-
@@ -202,10 +208,10 @@ instance Positionable EnemyBullet where
   getOrientation EnemyBullet{ebOrient} = ebOrient
   changePosition eb@EnemyBullet{ebPos = (x,y)} (mx,my) = eb{ebPos = (x + mx, y + my)}
 
-instance Positionable Obstacle where
-  getPosition Obstacle{obstaclePos} = obstaclePos
-  getOrientation Obstacle{obstacleOrient} = obstacleOrient
-  changePosition o@Obstacle{obstaclePos = (x,y)} (mx,my) = o{obstaclePos = (x + mx, y + my)}
+instance Positionable Meteor where
+  getPosition Meteor{meteorPos} = meteorPos
+  getOrientation Meteor{meteorOrient} = meteorOrient
+  changePosition o@Meteor{meteorPos = (x,y)} (mx,my) = o{meteorPos = (x + mx, y + my)}
 
 instance Positionable Explosion where
   getPosition Explosion{explosionPos} = explosionPos
@@ -233,8 +239,8 @@ instance Drawable PlayerBullet where
 instance Drawable EnemyBullet where
   getSprite Sprites{eBulletSprite} _ = eBulletSprite
 
-instance Drawable Obstacle where
-  getSprite Sprites{obstacleSprite} _ = obstacleSprite
+instance Drawable Meteor where
+  getSprite Sprites{meteorSprite} _ = meteorSprite
 
 instance Drawable Explosion where
   getSprite Sprites{explosionSprites} Explosion{explosionAnim = Animation index _ _ _} = explosionSprites !! index
@@ -266,8 +272,8 @@ instance Collideable PlayerBullet where
 instance Collideable EnemyBullet where
   getHitbox EnemyBullet{ebHbox} = ebHbox
 
-instance Collideable Obstacle where
-  getHitbox Obstacle{obstacleHbox} = obstacleHbox
+instance Collideable Meteor where
+  getHitbox Meteor{meteorHbox} = meteorHbox
 
 -- | Destructible type class
 class (Positionable a, Collideable a, Eq a) => Destructible a where
@@ -296,12 +302,12 @@ instance Destructible Drone where
   destroy d gstate@GameState{drones} = gstate{drones = delete d drones}
   update i d gstate@GameState{drones} = gstate{drones = replace i d drones}
 
-instance Destructible Obstacle where
-  applyDamage obs@Obstacle{obstacleHp} damage
-    | obstacleHp - damage <= 0 = (False, obs)
-    | otherwise = (True, obs {obstacleHp = obstacleHp - damage})
-  destroy o gstate@GameState{obstacles} = gstate{obstacles = delete o obstacles}
-  update i o gstate@GameState{obstacles} = gstate{obstacles = replace i o obstacles}
+instance Destructible Meteor where
+  applyDamage obs@Meteor{meteorHp} damage
+    | meteorHp - damage <= 0 = (False, obs)
+    | otherwise = (True, obs {meteorHp = meteorHp - damage})
+  destroy o gstate@GameState{meteors} = gstate{meteors = delete o meteors}
+  update i o gstate@GameState{meteors} = gstate{meteors = replace i o meteors}
 
 instance Destructible PlayerBullet where
   applyDamage pb damage = undefined -- not used
@@ -324,11 +330,14 @@ class Positionable a => Moveable a where
 instance Moveable PlayerBullet where
   getSpeed PlayerBullet{pbSpeed} = pbSpeed
 
-instance Moveable Obstacle where
-  getSpeed Obstacle {obstacleSpeed} = obstacleSpeed
+instance Moveable Meteor where
+  getSpeed Meteor {meteorSpeed} = meteorSpeed
 
 instance Moveable Turret where
   getSpeed Turret{turretSpeed} = turretSpeed
+
+instance Moveable Drone where
+  getSpeed Drone{droneSpeed} = droneSpeed
 
 instance Moveable EnemyBullet where
   getSpeed EnemyBullet{ebSpeed} = ebSpeed
