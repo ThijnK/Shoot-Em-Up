@@ -17,6 +17,7 @@ import System.Random
 data GameState = GameState {
   score         :: Int,
   paused        :: Bool,
+  gameOver      :: Bool,
   deltaTime     :: Float,
   timeElapsed   :: Float,
   downKeys      :: [Char],
@@ -36,6 +37,7 @@ initialState :: Sprites -> EnemyList -> StdGen -> GameState
 initialState sprites enemyList generator = GameState {
   score         = 0,
   paused        = False,
+  gameOver      = False,
   deltaTime     = 0.0,
   timeElapsed   = 0.0,
   downKeys      = [],
@@ -285,7 +287,7 @@ instance Destructible Player where
   applyDamage player@Player {playerHp} damage
     | playerHp - damage <= 0 = (False, player{playerHp = playerHp - damage})
     | otherwise = (True, player{playerHp = playerHp - damage})
-  destroy p gstate = gstate{paused = True} -- TO DO: make this indicate game over
+  destroy p gstate = gstate{gameOver = True} -- TO DO: make this indicate game over
   update _ p gstate = gstate{player = p}
 
 instance Destructible Turret where

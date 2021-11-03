@@ -16,8 +16,9 @@ import Graphics.Gloss.Data.Vector
 
 -- | Handle one iteration of the game
 step :: Float -> GameState -> IO GameState
-step secs gstate@GameState{paused, timeElapsed, player, meteors, downKeys, explosions}
-  | paused = return gstate -- No change to gamestate if game is paused
+step secs gstate@GameState{paused, gameOver, timeElapsed, player, meteors, downKeys, explosions}
+  | gameOver  = return (order66 gstate')
+  | paused    = return gstate -- No change to gamestate if game is paused
   | otherwise = return gstate'
   where
     gstate' = (spawnEnemies . updateTurrets . updateDrones . updateEnemyBullets . updatePlayerBullets) 
@@ -25,6 +26,11 @@ step secs gstate@GameState{paused, timeElapsed, player, meteors, downKeys, explo
     p = updatePlayer secs player downKeys
     e = updateExplosions secs explosions
     obs = map (move secs) meteors
+
+-- | Handle game over
+order66 :: GameState -> GameState
+order66 gstate@GameState{meteors, turrets, drones, explosions} = gstate{meteors = [], turrets = [], drones = [], explosions = es ++ explosions}
+  where es = map defaultExplosion (map getPosition meteors ++ map getPosition turrets ++ map getPosition drones)
 
 -- | Update player
 updatePlayer :: Float -> Player -> [Char] -> Player
@@ -144,15 +150,18 @@ input e gstate = return (inputKey e gstate)
 inputKey :: Event -> GameState -> GameState
 inputKey (EventKey (SpecialKey KeyEsc) Up _ _) gstate@GameState{paused} = gstate{paused = not paused}
 inputKey (EventKey (Char c) d _ _) gstate
-  | c == 'w' || c == 'a' || c == 's' || c == 'd' = updateKeys d
+  | c == 'w' || c == 'a' || c == 's' || c == 'd' = updateDownKeys d c gstate
   | otherwise = gstate
-  where
-    updateKeys :: KeyState -> GameState
-    updateKeys Down = gstate { downKeys = c : downKeys gstate }
-    updateKeys Up   = gstate { downKeys = delete c (downKeys gstate) }
 inputKey (EventKey (MouseButton LeftButton) Up _ _) gstate@GameState{deltaTime, player, playerBullets} 
   = let (p, pbs) = firePlayer deltaTime player in gstate{player = p, playerBullets = pbs ++ playerBullets}
+inputKey (EventKey (SpecialKey KeyEnter) Up _ _) gstate@GameState{gameOver, sprites, enemyList, generator}
+  | gameOver = initialState sprites enemyList generator -- If the game is over and you press [Enter], you start over
+  | otherwise = gstate
 inputKey _ gstate = gstate
+
+updateDownKeys :: KeyState -> Char -> GameState -> GameState
+updateDownKeys Down c gstate@GameState{downKeys} = gstate { downKeys = c : downKeys }
+updateDownKeys Up   c gstate@GameState{downKeys} = gstate { downKeys = delete c downKeys }
 
 firePlayer :: Float -> Player -> (Player, [PlayerBullet])
 firePlayer secs p@Player{playerPos, playerFr = FireRate fr last}
