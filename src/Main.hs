@@ -5,6 +5,7 @@ module Main where
 import Controller
 import Model
 import View
+import Defaults
 
 import Graphics.Gloss
 import Graphics.Gloss.Data.Bitmap
@@ -16,12 +17,11 @@ import System.Random
 main :: IO ()
 main = do sprites     <- loadSprites
           enemyList   <- BS.readFile "game/enemies.json"
-          print (decodeEL enemyList) -- debug
-          
+          generator   <- getStdGen
           playIO (InWindow "Shoot-Em-Up by Thijn Kroon & Mike Wu" (1000, 600) (0, 0)) -- Or FullScreen
             black            -- Background color
             60               -- Frames per second
-            (initialState sprites (decodeEL enemyList) (mkStdGen 69)) -- Initial state
+            (initialState sprites (decodeEL enemyList) generator) -- Initial state
             view             -- View function
             input            -- Event function
             step             -- Step function
@@ -40,9 +40,9 @@ loadSprites = do player1     <- loadBMP "assets/player-1.bmp"
                  drone1      <- loadBMP "assets/drone-1.bmp"
                  drone2      <- loadBMP "assets/drone-2.bmp"
                  drone3      <- loadBMP "assets/drone-3.bmp"
+                 kamikaze    <- loadBMP "assets/kamikaze.bmp"
                  bullet1     <- loadBMP "assets/bullet-1.bmp"
                  bullet2     <- loadBMP "assets/bullet-2.bmp"
-                 --bullet3     <- loadBMP "assets/bullet-3.bmp"
                  meteor      <- loadBMP "assets/meteor.bmp" -- credits to AX Assets: https://axassets.itch.io/spaceship-simple-assets
                  explosion1  <- loadBMP "assets/explosion-01.bmp"
                  explosion2  <- loadBMP "assets/explosion-02.bmp"
@@ -59,7 +59,7 @@ loadSprites = do player1     <- loadBMP "assets/player-1.bmp"
                  let turret = [turret1, turret2, turret3, turret4]
                  let drone = [drone1, drone2, drone3, drone2]
                  let explosion = [explosion1, explosion2, explosion3, explosion4, explosion5, explosion6, explosion7, explosion8, explosion9, explosion10, explosion11]
-                 return (Sprites player bullet1 bullet2 meteor turret drone explosion)
+                 return (Sprites player bullet1 bullet2 meteor turret drone kamikaze explosion)
 
 decodeEL :: BS.ByteString -> EnemyList
 decodeEL x = case decode x of

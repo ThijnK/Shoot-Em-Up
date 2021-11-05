@@ -3,9 +3,12 @@
 --   the game state into a picture
 module View where
 
+
+import Model
+import Classes
+
 import Graphics.Gloss
 import Graphics.Gloss.Data.Bitmap
-import Model
 
 view :: GameState -> IO Picture
 view = return . viewPure
@@ -25,7 +28,9 @@ viewPure gstate@GameState{gameOver, player, turrets, drones, playerBullets, enem
                           )
 
 drawUI :: GameState -> [Picture]
-drawUI gstate@GameState{gameOver, score} 
-  | gameOver = (translate (-200) 0 . color white . scale 0.5 0.5 . text) "Game Over!" : ui
+drawUI gstate@GameState{player, gameOver, score = Score n _ _} 
+  | gameOver = (translate (-120) (-90) . color white . scale 0.15 0.15 . text) "Press [Enter] to restart" : (translate (-200) 0 . color white . scale 0.5 0.5 . text) "Game Over!" : ui
   | otherwise = ui
-  where ui = [(translate (-495) 290 . color white . scale 0.1 0.1 . text) ("Score: " ++ show score)]
+  where ui = [(translate (-100) 280 . color white . scale 0.15 0.15 . text) ("Score: " ++ show n),
+              (translate 30 280 . color white . scale 0.15 0.15 . text) ("Hp: " ++ show (playerHp player))
+             ]
