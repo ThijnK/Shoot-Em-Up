@@ -5,7 +5,13 @@
 		{ "eleTime": 3.5, "eleType": "Turret" },
 		{ "eleTime": 3.5, "eleType": "Drone" },
 		{ "eleTime": 5.3, "eleType": "Turret" },
+		{ "eleTime": 5.4, "eleType": "Kamikaze" },
 		{ "eleTime": 5.5, "eleType": "Meteor" },
-		{ "eleTime": 6.5, "eleType": "Turret" }
+		{ "eleTime": 6.5, "eleType": "Turret" },
+		{ "eleTime": 8.5, "eleType": "Meteor" },
+		{ "eleTime": 9.2, "eleType": "Meteor" },
+		{ "eleTime": 9.3, "eleType": "Kamikaze" },
+		{ "eleTime": 9.3, "eleType": "Drone" },
+		{ "eleTime": 11.1, "eleType": "Meteor" }
 	]
 }

@@ -5,7 +5,7 @@ module Classes where
 import Model
 
 import Graphics.Gloss
-    ( Point, red, color, line, rotate, translate, Picture )
+    ( Point, red, color, line, rotate, translate, Picture, scale )
 import Graphics.Gloss.Geometry.Angle (radToDeg)
 import Graphics.Gloss.Geometry.Line (segClearsBox)
 import Data.List ( delete, find, elemIndex )
@@ -31,6 +31,11 @@ instance Positionable Drone where
   getPosition Drone{dronePos} = dronePos
   getOrientation Drone{droneOrient} = droneOrient
   changePosition d@Drone{dronePos = (x,y)} (mx,my) = d{dronePos = (x + mx, y + my)}
+
+instance Positionable Kamikaze where
+  getPosition Kamikaze{kamikazePos} = kamikazePos
+  getOrientation Kamikaze{kamikazeOrient} = kamikazeOrient
+  changePosition k@Kamikaze{kamikazePos = (x,y)} (mx,my) = k{kamikazePos = (x + mx, y + my)}
 
 instance Positionable PlayerBullet where
   getPosition PlayerBullet{pbPos} = pbPos
@@ -68,6 +73,10 @@ instance Drawable Turret where
 instance Drawable Drone where
   getSprite Sprites{droneSprites} Drone{droneAnim = Animation index _ _ _} = droneSprites !! index
 
+instance Drawable Kamikaze where
+  getSprite Sprites{kamikazeSprite} _ = kamikazeSprite
+  -- toPicture Sprites{kamikazeSprite} Kamikaze{kamikazePos, kamikazeOrient} = scale 0.8 0.8 (draw kamikazeOrient kamikazePos kamikazeSprite)
+
 instance Drawable PlayerBullet where
   getSprite Sprites{pBulletSprite} _ = pBulletSprite
 
@@ -100,6 +109,9 @@ instance Collideable Turret where
 
 instance Collideable Drone where
   getHitbox Drone{droneHbox} = droneHbox
+
+instance Collideable Kamikaze where
+  getHitbox Kamikaze{kamikazeHbox} = kamikazeHbox
 
 instance Collideable PlayerBullet where
   getHitbox PlayerBullet{pbHbox} = pbHbox
@@ -137,6 +149,13 @@ instance Destructible Drone where
   destroy d gstate@GameState{drones} = gstate{drones = delete d drones}
   update i d gstate@GameState{drones} = gstate{drones = replace i d drones}
 
+instance Destructible Kamikaze where
+  applyDamage k@Kamikaze{kamikazeHp} damage
+    | kamikazeHp - damage <= 0 = (False, k)
+    | otherwise = (True, k {kamikazeHp = kamikazeHp - damage})
+  destroy k gstate@GameState{kamikazes} = gstate{kamikazes = delete k kamikazes}
+  update i k gstate@GameState{kamikazes} = gstate{kamikazes = replace i k kamikazes}
+
 instance Destructible Meteor where
   applyDamage obs@Meteor{meteorHp} damage
     | meteorHp - damage <= 0 = (False, obs)
@@ -170,12 +189,16 @@ instance Moveable Meteor where
 
 instance Moveable Turret where
   getSpeed Turret{turretSpeed} = turretSpeed
+  -- Custom movement for turrets
   move secs t@Turret{turretPos = (x, y), turretOrient, turretSpeed, turretTarget}
     | x < turretTarget = changePosition t{turretOrient = turretOrient + 0.05, turretTarget = turretTarget + 50} (secs * turretSpeed * cos turretOrient, secs * turretSpeed * sin turretOrient)
     | otherwise        = changePosition t (secs * turretSpeed, 0)
 
 instance Moveable Drone where
   getSpeed Drone{droneSpeed} = droneSpeed
+
+instance Moveable Kamikaze where
+  getSpeed Kamikaze{kamikazeSpeed} = kamikazeSpeed
 
 instance Moveable EnemyBullet where
   getSpeed EnemyBullet{ebSpeed} = ebSpeed
@@ -201,7 +224,6 @@ instance Shootable PlayerBullet where
 instance Shootable EnemyBullet where
   getDmg EnemyBullet{ebDmg} = ebDmg
   shotByPlayer _ = False 
-
 
 -- Check collision of two collideables
 collide :: (Positionable a, Positionable b, Collideable a, Collideable b) => a -> b -> Bool

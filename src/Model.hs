@@ -20,10 +20,11 @@ data GameState = GameState {
   deltaTime     :: Float,
   timeElapsed   :: Float,
   downKeys      :: [Char],
-  releasedKeys  :: [Char],
+  saveLoad      :: (Bool, Bool), -- (wantsToSave, wantsToLoad)
   player        :: Player,
   turrets       :: [Turret],
   drones        :: [Drone],
+  kamikazes     :: [Kamikaze],
   playerBullets :: [PlayerBullet],
   enemyBullets  :: [EnemyBullet],
   meteors       :: [Meteor],
@@ -89,6 +90,14 @@ data Drone = Drone {
   droneAnim   :: Animation
 } deriving (Eq, Generic)
 
+data Kamikaze = Kamikaze {
+  kamikazePos    :: Point,
+  kamikazeOrient :: Float,
+  kamikazeHp     :: Int,
+  kamikazeSpeed  :: Float,
+  kamikazeHbox   :: Point
+} deriving (Eq, Generic)
+
 data PlayerBullet = PlayerBullet {
   pbPos    :: Point,
   pbOrient :: Float,
@@ -133,6 +142,7 @@ instance ToJSON Score
 instance ToJSON Player
 instance ToJSON Turret
 instance ToJSON Drone
+instance ToJSON Kamikaze
 instance ToJSON FireRate
 instance ToJSON PlayerBullet
 instance ToJSON EnemyBullet
@@ -156,10 +166,11 @@ instance FromJSON GameState where
       <*> v .: "deltaTime"
       <*> v .: "timeElapsed"
       <*> v .: "downKeys"
-      <*> v .: "releasedKeys"
+      <*> v .: "saveLoad"
       <*> v .: "player"
       <*> v .: "turrets"
       <*> v .: "drones"
+      <*> v .: "kamikazes"
       <*> v .: "playerBullets"
       <*> v .: "enemyBullets"
       <*> v .: "meteors"
@@ -174,6 +185,7 @@ instance FromJSON FireRate
 instance FromJSON Animation
 instance FromJSON Turret
 instance FromJSON Drone
+instance FromJSON Kamikaze
 instance FromJSON PlayerBullet
 instance FromJSON EnemyBullet
 instance FromJSON Meteor
