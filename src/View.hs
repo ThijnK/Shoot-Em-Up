@@ -21,15 +21,20 @@ viewPure gstate@GameState{gameOver, player, turrets, drones, playerBullets, enem
                             ++ map (toPicture sprites) enemyBullets
                             ++ map (toPicture sprites) turrets
                             ++ map (toPicture sprites) drones
-                            ++ map (toPicture sprites) meteors 
+                            ++ map (toPicture sprites) meteors
                             ++ map (toPicture sprites) explosions
                             ++ drawUI gstate
                             -- ++ map drawHbox turrets
                           )
 
 drawUI :: GameState -> [Picture]
-drawUI gstate@GameState{player, gameOver, score = Score n _ _} 
+drawUI gstate@GameState{player, paused, gameOver, score = Score n _ _}
   | gameOver = (translate (-120) (-90) . color white . scale 0.15 0.15 . text) "Press [Enter] to restart" : (translate (-200) 0 . color white . scale 0.5 0.5 . text) "Game Over!" : ui
+  | paused = (translate (-120) (-90) . color white . scale 0.15 0.15 . text) "Press [Esc] to resume"
+           : (translate (-120) (-140) . color white . scale 0.15 0.15 . text) "Press [O] to save game"
+           : (translate (-120) (-175) . color white . scale 0.15 0.15 . text) "Press [P] to load game"
+           : (translate (-125) 0 . color white . scale 0.5 0.5 . text) "Paused"
+           : ui
   | otherwise = ui
   where ui = [(translate (-100) 280 . color white . scale 0.15 0.15 . text) ("Score: " ++ show n),
               (translate 30 280 . color white . scale 0.15 0.15 . text) ("Hp: " ++ show (playerHp player))

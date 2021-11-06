@@ -171,7 +171,7 @@ instance Moveable Meteor where
 instance Moveable Turret where
   getSpeed Turret{turretSpeed} = turretSpeed
   move secs t@Turret{turretPos = (x, y), turretOrient, turretSpeed, turretTarget}
-    | x < turretTarget = changePosition t{turretOrient = turretOrient + 0.05} (secs * turretSpeed * cos turretOrient, secs * turretSpeed * sin turretOrient)
+    | x < turretTarget = changePosition t{turretOrient = turretOrient + 0.05, turretTarget = turretTarget + 50} (secs * turretSpeed * cos turretOrient, secs * turretSpeed * sin turretOrient)
     | otherwise        = changePosition t (secs * turretSpeed, 0)
 
 instance Moveable Drone where

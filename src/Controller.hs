@@ -16,19 +16,71 @@ import Data.Maybe
 import GHC.Float.RealFracMethods (int2Float)
 import Graphics.Gloss.Data.Vector
 import Control.Monad.State
+import Data.Aeson
+import qualified Data.ByteString.Lazy as BS
 
 -- | Handle one iteration of the game
+-- step' :: Float -> GameState -> IO GameState
+-- step' secs gstate@GameState{score, paused, gameOver, timeElapsed, player, meteors, downKeys, explosions}
+--   | gameOver  = return (order66 gstate')
+--   | paused    = return gstate -- No change to gamestate if game is paused
+--   | otherwise = return gstate'
+--   where
+--     gstate' = (spawnEnemies . updateTurrets . updateDrones . updateEnemyBullets . updatePlayerBullets)
+--       gstate {score = updateScore gameOver secs score, deltaTime = secs, timeElapsed = timeElapsed + secs, player = p, explosions = e, meteors = obs}
+--     p = updatePlayer secs player downKeys
+--     e = updateExplosions secs explosions
+--     obs = map (move secs) meteors
+
 step :: Float -> GameState -> IO GameState
-step secs gstate@GameState{score, paused, gameOver, timeElapsed, player, meteors, downKeys, explosions}
-  | gameOver  = return (order66 gstate')
-  | paused    = return gstate -- No change to gamestate if game is paused
-  | otherwise = return gstate'
-  where
-    gstate' = (spawnEnemies . updateTurrets . updateDrones . updateEnemyBullets . updatePlayerBullets)
-      gstate {score = updateScore gameOver secs score, deltaTime = secs, timeElapsed = timeElapsed + secs, player = p, explosions = e, meteors = obs}
-    p = updatePlayer secs player downKeys
-    e = updateExplosions secs explosions
-    obs = map (move secs) meteors
+step secs gstate@GameState{score, paused, gameOver, timeElapsed, player, meteors, downKeys, releasedKeys, explosions} =
+  do
+    gs <- saveLoad gstate
+    newState gs
+    where
+      gstate' oldState = (spawnEnemies . updateTurrets . updateDrones . updateEnemyBullets . updatePlayerBullets)
+        oldState {score = updateScore gameOver secs score, deltaTime = secs, timeElapsed = timeElapsed + secs, player = p, explosions = e, meteors = obs}
+      p = updatePlayer secs player downKeys
+      e = updateExplosions secs explosions
+      obs = map (move secs) meteors
+      newState oldState
+        | gameOver = return (order66 (gstate' oldState))
+        | paused = return oldState -- No change to gamestate if game is paused
+        | otherwise = return (gstate' oldState)
+
+-- handle save/loading
+saveLoad :: GameState -> IO GameState
+saveLoad gstate@GameState{sprites, score, paused, gameOver, timeElapsed, player, meteors, downKeys, releasedKeys, explosions, generator} =
+  do
+
+      let wantsToSave = paused && 'o' `elem` releasedKeys
+      let wantsToLoad = paused && 'p' `elem` releasedKeys
+      let loadedFile 
+            | wantsToLoad = BS.readFile "game/savegame.json"
+            | otherwise = pure BS.empty
+
+      loadedFile' <- loadedFile
+
+      let handleSaveLoad 
+            | wantsToSave = BS.writeFile "game/savegame.json" jsonOutput 
+                >> print "Game saved!"
+                >> pure gstate { releasedKeys = delete 'o' releasedKeys }
+            | wantsToLoad = print "Game loaded!"
+                >> pure (parsedGstate loadedFile')
+            | otherwise = pure gstate
+      handleSaveLoad
+
+      where
+        parsedGstate :: BS.ByteString -> GameState
+        parsedGstate loadedFile | loadedFile == BS.empty = gstate -- keep old state if error
+                                | otherwise = case parsedJson loadedFile of
+                                    Nothing -> gstate
+                                    Just gstate' -> gstate' { paused = True, sprites = sprites, generator = generator, downKeys = [], releasedKeys = []}
+
+        parsedJson :: BS.ByteString -> Maybe GameState
+        parsedJson l = decode l
+
+        jsonOutput = encode gstate
 
 -- | Handle game over
 order66 :: GameState -> GameState
@@ -48,7 +100,7 @@ increaseScore x s@(Score n incr last) = Score (n + x) incr last
 -- | Update player
 updatePlayer :: Float -> Player -> [Char] -> Player
 updatePlayer secs player@Player{playerSpeed, playerFr = FireRate fr last, playerAnim} downKeys
-  = p{playerFr = FireRate fr (last + secs), playerAnim = animateR secs playerAnim} 
+  = p{playerFr = FireRate fr (last + secs), playerAnim = animateR secs playerAnim}
   where p = changePosition player (foldr (checkKey (playerSpeed * secs)) (0,0) downKeys) -- Move based on the keys currently being held down
 
 checkKey :: Float -> Char -> (Float, Float) -> (Float, Float)
@@ -136,11 +188,13 @@ input e gstate = return (inputKey e gstate)
 
 inputKey :: Event -> GameState -> GameState
 inputKey (EventKey (SpecialKey KeyEsc) Up _ _) gstate@GameState{paused} = gstate{paused = not paused}
-inputKey (EventKey (Char c) d _ _) gstate
-  | c == 'w' || c == 'a' || c == 's' || c == 'd' = updateDownKeys d c gstate
+inputKey (EventKey (Char c) d _ _) gstate@GameState{paused}
+  | c == 'w' || c == 'a' || c == 's' || c == 'd' || (paused && c == 'o') || (paused && c == 'p') = updateDownKeys d c gstate
   | otherwise = gstate
-inputKey (EventKey (MouseButton LeftButton) Up _ _) gstate@GameState{gameOver, deltaTime, player, playerBullets}
-  = let (p, pbs) = firePlayerBullet deltaTime gameOver player in gstate{player = p, playerBullets = pbs ++ playerBullets}
+inputKey (EventKey (MouseButton LeftButton) Up _ _) gstate@GameState{paused, gameOver, deltaTime, player, playerBullets}
+  | gameOver = gstate
+  | paused = gstate
+  | otherwise = let (p, pbs) = firePlayerBullet deltaTime gameOver player in gstate{player = p, playerBullets = pbs ++ playerBullets}
 inputKey (EventKey (SpecialKey KeyEnter) Up _ _) gstate@GameState{gameOver, sprites, enemyList, generator}
   | gameOver = initialState sprites (snd enemyList) generator -- If the game is over and you press [Enter], you start over
   | otherwise = gstate
@@ -148,6 +202,8 @@ inputKey _ gstate = gstate
 
 updateDownKeys :: KeyState -> Char -> GameState -> GameState
 updateDownKeys Down c gstate@GameState{downKeys} = gstate { downKeys = c : downKeys }
+updateDownKeys Up  'o' gstate@GameState {downKeys, releasedKeys} = gstate {downKeys = delete 'o' downKeys, releasedKeys = 'o' : releasedKeys}
+updateDownKeys Up  'p' gstate@GameState {downKeys, releasedKeys} = gstate {downKeys = delete 'p' downKeys, releasedKeys = 'p' : releasedKeys}
 updateDownKeys Up   c gstate@GameState{downKeys} = gstate { downKeys = delete c downKeys }
 
 firePlayerBullet :: Float -> Bool -> Player -> (Player, [PlayerBullet])

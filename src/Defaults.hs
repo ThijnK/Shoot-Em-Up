@@ -13,6 +13,7 @@ initialState sprites enemyList generator = GameState {
   deltaTime     = 0.0,
   timeElapsed   = 0.0,
   downKeys      = [],
+  releasedKeys  = [],
   player        = Player {
     playerPos = (-100, 0),
     playerOrient = 0,
