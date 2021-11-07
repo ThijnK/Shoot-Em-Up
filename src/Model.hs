@@ -1,17 +1,13 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
+
 -- | This module contains the data types
 --   which represent the state of the game
 module Model where
 
-import Graphics.Gloss
-import Graphics.Gloss.Data.Bitmap
-import Data.Maybe
-import Data.List
-import Data.Aeson
-import GHC.Generics
-import System.Random
+import Graphics.Gloss ( Picture, Point )
+import GHC.Generics ( Generic )
+import System.Random ( StdGen )
 
 data GameState = GameState {
   score         :: Score,
@@ -125,104 +121,20 @@ data Meteor = Meteor {
 -- List used for spawning enemies at given times
 newtype EnemyList = EnemyList {enemies :: [EnemyListEnemy]} 
   deriving (Show, Generic)
-instance FromJSON EnemyList
 
 data EnemyListEnemy = EnemyListEnemy
   { eleTime :: Float,
     eleType :: String
   }
   deriving (Show, Generic)
-instance FromJSON EnemyListEnemy
-
--- Because everything is generic, we can just let aeson handle the encoding
-instance ToJSON GameState
-
--- Help Aeson by instancing ToJSON for generics
-instance ToJSON Score
-instance ToJSON Player
-instance ToJSON Turret
-instance ToJSON Drone
-instance ToJSON Kamikaze
-instance ToJSON FireRate
-instance ToJSON PlayerBullet
-instance ToJSON EnemyBullet
-instance ToJSON Meteor
-instance ToJSON Explosion
-instance ToJSON Animation
-instance ToJSON Sprites where
-  toJSON sprites = object []
-instance ToJSON EnemyList
-instance ToJSON EnemyListEnemy
-instance ToJSON StdGen where
-  toJSON stdgen = object []
-
--- Construct GameState from JSON
-instance FromJSON GameState where
-  parseJSON = withObject "GameState" $ \v ->
-    GameState
-      <$> v .: "score"
-      <*> v .: "paused"
-      <*> v .: "gameOver"
-      <*> v .: "deltaTime"
-      <*> v .: "timeElapsed"
-      <*> v .: "downKeys"
-      <*> v .: "saveLoad"
-      <*> v .: "player"
-      <*> v .: "turrets"
-      <*> v .: "drones"
-      <*> v .: "kamikazes"
-      <*> v .: "playerBullets"
-      <*> v .: "enemyBullets"
-      <*> v .: "meteors"
-      <*> v .: "explosions"
-      <*> v .: "sprites"
-      <*> v .: "enemyList"
-      <*> v .: "generator"
-
-instance FromJSON Score
-instance FromJSON Player
-instance FromJSON FireRate
-instance FromJSON Animation
-instance FromJSON Turret
-instance FromJSON Drone
-instance FromJSON Kamikaze
-instance FromJSON PlayerBullet
-instance FromJSON EnemyBullet
-instance FromJSON Meteor
-instance FromJSON Explosion
-
-instance FromJSON Sprites where
-  parseJSON = withObject "Sprites" $ \obj -> do
-    return (Sprites {playerSprites = [Blank], pBulletSprite = Blank, eBulletSprite = Blank, meteorSprite = Blank, turretSprites = [Blank], droneSprites = [Blank], kamikazeSprite = Blank, explosionSprites = [Blank]})
-  
-instance FromJSON StdGen where
-  parseJSON = withObject "StdGen" $ \obj -> do
-    return (mkStdGen 69)
-
-{-
-Enemy ideas: 
-- Turret = enemy that does not move and shoots bullets in player's direction
-- Corvette = enemy that moves vertically towards the player and fires bullets straight in front of it
-- Drone = moves with the player, spins around and fires multiple bullets around it at a time at fixed intervals
-- Kamikaze = suicide bomber
--}
 
 {-
 Power up ideas: 
-- Health
-- FireRate
-- Speed
+- Health Int
+- FireRate Int
+- Speed Int
 - Invincibility
 -}
-
--- Health Int | FireRate Int | Speed Int
--- data PowerUp = PowerUp {
---   -- powerUpType?
---   powerPos :: Point,
---   powerOrient :: Float,
---   powerHbox :: Point
--- }
-
 
 {-    __        __
      /\ \      /\ \       [ ]    _   _     _______
@@ -241,12 +153,3 @@ Power up ideas:
      └─ ┘ hijn
 
 -}
-
--- TO DO : move these helper functions to seperate file or something
-clamp :: Float -> (Float, Float) -> Float
-clamp x (l,u) = max (min x u) l
-
-replace :: Int -> a -> [a] -> [a]
-replace index x xs = zs ++ (x:ys)
-  where (zs, _:ys) = splitAt index xs
-

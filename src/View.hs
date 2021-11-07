@@ -5,10 +5,10 @@ module View where
 
 
 import Model
-import Classes
+import Classes ( Drawable(toPicture), drawHbox )
 
-import Graphics.Gloss
-import Graphics.Gloss.Data.Bitmap
+import Graphics.Gloss ( scale, translate, color, Picture, white, pictures, text )
+import Graphics.Gloss.Data.Bitmap ()
 
 view :: GameState -> IO Picture
 view = return . viewPure
@@ -25,10 +25,6 @@ viewPure gstate@GameState{gameOver, player, turrets, drones, kamikazes, playerBu
                             ++ map (toPicture sprites) meteors
                             ++ map (toPicture sprites) explosions
                             ++ drawUI gstate
-                            ++ map drawHbox turrets
-                            ++ map drawHbox drones
-                            ++ map drawHbox kamikazes
-                            ++ [drawHbox player]
                           )
 
 drawUI :: GameState -> [Picture]

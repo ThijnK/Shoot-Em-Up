@@ -15,15 +15,13 @@ executable shoot-em-up
                        aeson,
                        bytestring,
                        mtl
-  other-modules:
-    Controller
-    Model
-    View
   hs-source-dirs:      src
   other-modules:       Controller
                      , Model
                      , View
                      , Classes
                      , Defaults
+                     , SaveLoad
+                     , Helper
 
   default-language:    Haskell2010

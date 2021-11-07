@@ -6,23 +6,21 @@ module Controller where
 import Model
 import Classes
 import Defaults
+import SaveLoad ( saveGame, loadGame )
+import Helper
 
-import Graphics.Gloss
+import Graphics.Gloss ( Point )
 import Graphics.Gloss.Interface.IO.Game
-import System.Random
-import Data.List
-import Data.Char
-import Data.Maybe
-import GHC.Float.RealFracMethods (int2Float)
-import Graphics.Gloss.Data.Vector
-import Control.Monad.State
-import Data.Aeson
-import qualified Data.ByteString.Lazy as BS
+import System.Random ( Random(randomR), StdGen )
+import Data.List ( delete )
+import Data.Maybe ( mapMaybe )
+
 
 step :: Float -> GameState -> IO GameState
 step secs gstate@GameState{score, paused, gameOver, timeElapsed, player, meteors, downKeys, saveLoad = (wantsToSave, wantsToLoad), explosions}
-  | wantsToSave = save gstate
-  | wantsToLoad = load gstate
+  -- Check if the player pressed the save or load key
+  | wantsToSave = saveGame gstate
+  | wantsToLoad = loadGame gstate
   | otherwise   = return (newState gstate)
   where
     newState :: GameState -> GameState
@@ -31,6 +29,7 @@ step secs gstate@GameState{score, paused, gameOver, timeElapsed, player, meteors
       | paused    = oldState -- No change to gamestate if game is paused
       | otherwise = updateState secs oldState
 
+-- | Update the entire GameState using the various update functions
 updateState :: Float -> GameState -> GameState
 updateState secs gstate@GameState{gameOver, timeElapsed, score, player, downKeys, meteors, explosions} =
   (spawnEnemies . updatePlayer . updateTurrets . updateDrones . updateKamikazes . updateEnemyBullets . updatePlayerBullets)
@@ -40,24 +39,6 @@ updateState secs gstate@GameState{gameOver, timeElapsed, score, player, downKeys
          explosions = updateExplosions secs explosions,
          meteors = map (move secs) meteors
         }
-
--- Save the game to a JSON file
-save :: GameState -> IO GameState
-save gstate = do let gstate' = gstate{saveLoad = (False, False)}
-                 BS.writeFile "game/savegame.json" (encode gstate')
-                 print "Game saved!"
-                 return gstate'
-
--- Load the game from a JSON file
-load :: GameState -> IO GameState
-load gstate@GameState{sprites, generator}
-  = do loadedFile <- BS.readFile "game/savegame.json"
-       let gstate' = case decode loadedFile of
-                        Nothing -> gstate
-                        Just gs -> gs{paused = True, sprites = sprites, generator = generator, downKeys = []}
-       print "Game loaded!"
-       print (isNothing (decode loadedFile :: Maybe GameState))
-       return gstate'{saveLoad = (False, False)}
 
 -- | Handle game over
 order66 :: GameState -> GameState
@@ -82,6 +63,14 @@ updatePlayer gstate@GameState{player, deltaTime, downKeys, turrets, drones, mete
       (FireRate fr last) = playerFr player
       p = changePosition player (foldr (checkKey (playerSpeed player * deltaTime)) (0,0) downKeys) -- Move based on the keys currently being held down
 
+-- Adds to the x y movement based on the received key (that is being held down)
+checkKey :: Float -> Char -> (Float, Float) -> (Float, Float)
+checkKey n 's' (x,y) = (x, y - n)
+checkKey n 'a' (x,y) = (x - n, y)
+checkKey n 'w' (x,y) = (x, y + n)
+checkKey n 'd' (x,y) = (x + n, y)
+checkKey _ _   acc   = acc
+
 -- Check collision of player with given enemies/obstacles
 checkCollision :: Destructible b => [b] -> GameState -> GameState
 checkCollision ds gstate = foldr check gstate ds where
@@ -90,13 +79,6 @@ checkCollision ds gstate = foldr check gstate ds where
                             (False, p) -> destroy d gstate'{gameOver = True, player = p, explosions = defaultExplosion (getPosition d) : explosions}
                             (True, p)  -> destroy d gstate'{player = p, explosions = defaultExplosion (getPosition d) : explosions}
     | otherwise = gstate'
-
-checkKey :: Float -> Char -> (Float, Float) -> (Float, Float)
-checkKey n 's' (x,y) = (x, y - n)
-checkKey n 'a' (x,y) = (x - n, y)
-checkKey n 'w' (x,y) = (x, y + n)
-checkKey n 'd' (x,y) = (x + n, y)
-checkKey _ _   acc   = acc
 
 -- | Update player bullets
 updatePlayerBullets :: GameState -> GameState
@@ -200,17 +182,14 @@ inputKey (EventKey (SpecialKey KeyEnter) Up _ _) gstate@GameState{gameOver, spri
   | otherwise = gstate
 inputKey _ gstate = gstate
 
-updateDownKeys :: KeyState -> Char -> GameState -> GameState
-updateDownKeys Down c gstate@GameState{downKeys} = gstate { downKeys = c : downKeys }
-updateDownKeys Up   c gstate@GameState{downKeys} = gstate { downKeys = delete c downKeys }
-
+-- Fires a player bullet from the current position of the player
 firePlayerBullet :: Float -> Bool -> Player -> (Player, [PlayerBullet])
 firePlayerBullet secs False p@Player{playerPos, playerFr = FireRate fr last}
   | last + secs > fr = (p{playerFr = FireRate fr 0}, [defaultPlayerBullet playerPos])
   | otherwise = (p, [])
 firePlayerBullet _ _ p = (p,[])
 
--- | General helper functions
+-- | General helper functions that depend on certain type classes (can't define those in Helper.hs)
 
 -- Checks collision for a given bullet and a list of obstacles it can hit
 shootBullet :: (Shootable a, Destructible a, Destructible b) => [b] -> (Maybe a, GameState) -> (Maybe a, GameState)
@@ -224,11 +203,6 @@ checkIncreaseScore :: Bool -> GameState -> GameState
 checkIncreaseScore True  gstate@GameState{score} = gstate{score = increaseScore 10 score}
 checkIncreaseScore False gstate                  = gstate
 
--- Replace the element at the given index of the list with the given value
-replace :: Int -> a -> [a] -> [a]
-replace index x xs = zs ++ (x:ys)
-  where (zs, _:ys) = splitAt index xs
-
 -- Remove an object from gamestate if it's outside of bounds
 filter' :: Destructible a => a -> GameState -> (Bool, GameState)
 filter' a gstate
@@ -236,38 +210,9 @@ filter' a gstate
   | otherwise = (True, gstate)
   where (x,_) = getPosition a
 
+-- Checks whether an object is within bounds
 withinBounds :: Positionable a => a -> Bool
 withinBounds a
   | x > 550 || x < -550 = False
   | otherwise = True
   where (x,_) = getPosition a
-
--- Updates firerate
-updateFr :: Float -> FireRate -> FireRate
-updateFr secs (FireRate fr last)
-  | last + secs > fr = FireRate fr 0
-  | otherwise        = FireRate fr (last + secs)
-
--- Repeats animation when it reaches the end
-animateR :: Float -> Animation -> Animation
-animateR secs (Animation index total speed last)
-  | last + secs > speed = Animation ((index + 1) `mod` total) total speed 0
-  | otherwise = Animation index total speed (last + secs)
-
--- Returns Nothing when animation reaches the end
-animateM :: Float -> Animation -> Maybe Animation
-animateM secs (Animation index total speed last)
-  | index + 1 > total   = Nothing
-  | last + secs > speed = Just (Animation (index + 1) total speed 0)
-  | otherwise           = Just (Animation index total speed (last + secs))
-
--- Calculate the angle between two points
-anglePoints :: Point -> Point -> Float
-anglePoints (x1,y1) (x2,y2) = atan2 (y2 - y1) (x2 - x1)
-
--- Clamps the orientation to facing the the left side of the screen
-clampOrientation :: Float -> Float
-clampOrientation angle
-  | angle > -0.75 * pi && angle < 0 = -0.75 * pi
-  | angle < 0.75 * pi && angle > 0  = 0.75 * pi
-  | otherwise                       = angle

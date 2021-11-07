@@ -1,11 +1,12 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
+-- Contains all custom type classes and their instances
 module Classes where
 
 import Model
+import Helper ( replace, clamp )
 
-import Graphics.Gloss
-    ( Point, red, color, line, rotate, translate, Picture, scale )
+import Graphics.Gloss ( Point, red, color, line, rotate, translate, Picture, scale )
 import Graphics.Gloss.Geometry.Angle (radToDeg)
 import Graphics.Gloss.Geometry.Line (segClearsBox)
 import Data.List ( delete, find, elemIndex )
@@ -217,14 +218,6 @@ class (Positionable a, Collideable a) => Shootable a where
 
 data HitInfo = Miss | Damage Int | Kill
 
-instance Shootable PlayerBullet where
-  getDmg PlayerBullet{pbDmg} = pbDmg
-  shotByPlayer _ = True 
-
-instance Shootable EnemyBullet where
-  getDmg EnemyBullet{ebDmg} = ebDmg
-  shotByPlayer _ = False 
-
 -- Check collision of two collideables
 collide :: (Positionable a, Positionable b, Collideable a, Collideable b) => a -> b -> Bool
 collide a b = not (segClearsBox (xa - wa, ya - ha) (xa + wa, ya + ha) ll ur)
@@ -236,3 +229,11 @@ collide a b = not (segClearsBox (xa - wa, ya - ha) (xa + wa, ya + ha) ll ur)
     ur = (xb + wb, yb + hb)
     (xb,yb) = getPosition b
     (wb,hb) = getHitbox b
+
+instance Shootable PlayerBullet where
+  getDmg PlayerBullet{pbDmg} = pbDmg
+  shotByPlayer _ = True 
+
+instance Shootable EnemyBullet where
+  getDmg EnemyBullet{ebDmg} = ebDmg
+  shotByPlayer _ = False 

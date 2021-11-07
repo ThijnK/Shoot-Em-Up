@@ -1,3 +1,4 @@
+-- Contains functions to construct all default instances of the various objects in the game
 module Defaults where
 
 import Model
