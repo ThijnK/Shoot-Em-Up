@@ -33,6 +33,7 @@ initialState sprites enemyList generator = GameState {
   explosions    = [],
   sprites       = sprites,
   enemyList     = (enemyList, enemyList),
+  bgList        = [Background 0 (-100.0) 0,  Background 1024 (-100.0) 0, Background 512 (-200.0) 1, Background 1537 (-200.0) 1],
   generator     = generator
 }
 

@@ -27,6 +27,7 @@ data GameState = GameState {
   explosions    :: [Explosion],
   sprites       :: Sprites,
   enemyList     :: (EnemyList, EnemyList), -- Also stores a copy of the original enemylist
+  bgList        :: [Background],
   generator     :: StdGen 
 } deriving Generic
 
@@ -46,7 +47,8 @@ data Sprites  = Sprites {
   turretSprites    :: [Picture],
   droneSprites     :: [Picture],
   kamikazeSprite   :: Picture,
-  explosionSprites :: [Picture]
+  explosionSprites :: [Picture],
+  backgroundSprites :: [Picture]
 } deriving Generic
 
 data Explosion = Explosion {
@@ -116,6 +118,12 @@ data Meteor = Meteor {
   meteorSpeed  :: Float,
   meteorHp     :: Int,
   meteorHbox   :: Point
+} deriving (Eq, Generic)
+
+data Background = Background {
+  backgroundXPos     :: Float,
+  backgroundSpeed    :: Float,
+  backgroundType     :: Int
 } deriving (Eq, Generic)
 
 -- List used for spawning enemies at given times

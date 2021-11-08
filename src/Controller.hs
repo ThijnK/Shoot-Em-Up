@@ -31,13 +31,14 @@ step secs gstate@GameState{score, paused, gameOver, timeElapsed, player, meteors
 
 -- | Update the entire GameState using the various update functions
 updateState :: Float -> GameState -> GameState
-updateState secs gstate@GameState{gameOver, timeElapsed, score, player, downKeys, meteors, explosions} =
+updateState secs gstate@GameState{gameOver, timeElapsed, score, player, downKeys, meteors, explosions, bgList} =
   (spawnEnemies . updatePlayer . updateTurrets . updateDrones . updateKamikazes . updateEnemyBullets . updatePlayerBullets)
   gstate{score = updateScore gameOver secs score,
          deltaTime = secs,
          timeElapsed = timeElapsed + secs,
          explosions = updateExplosions secs explosions,
-         meteors = map (move secs) meteors
+         meteors = map (move secs) meteors,
+         bgList = updateBGList gstate secs
         }
 
 -- | Handle game over
@@ -138,6 +139,15 @@ updateKamikazes gstate@GameState{player, deltaTime, kamikazes}
       | otherwise = angle
       where angle = anglePoints kamikazePos (playerPos player)
 
+-- | Update backgrounds
+updateBGList :: GameState -> Float -> [Background]
+updateBGList gstate@GameState{paused, gameOver, bgList} secs
+  | paused = bgList
+  | gameOver = bgList
+  | otherwise = map f bgList where
+        f bg@Background {backgroundXPos, backgroundSpeed} = 
+          if backgroundXPos > -1024 then bg {backgroundXPos = backgroundXPos + (backgroundSpeed * secs)} else bg {backgroundXPos = 1024}
+
 -- | Spawn enemies based on the enemyList
 spawnEnemies :: GameState -> GameState
 spawnEnemies gstate@GameState{timeElapsed, enemyList, meteors, turrets, drones, kamikazes, generator}
@@ -152,8 +162,8 @@ spawnEnemies gstate@GameState{timeElapsed, enemyList, meteors, turrets, drones, 
     addEnemy "Kamikaze" = gstate{enemyList = (newList, snd enemyList), kamikazes = defaultKamikaze (500, randYPos) : kamikazes, generator = newGen''}
     addEnemy _        = gstate{enemyList = (newList, snd enemyList), generator = newGen}
     (randYPos, newGen) = randomR (-250, 250) generator :: (Float, StdGen)
-    (randXPos, newGen') = randomR (0, 450) generator :: (Float, StdGen)
-    (randSpeed, newGen'') = randomR (-150, -70) generator :: (Float, StdGen)
+    (randXPos, newGen') = randomR (0, 450) newGen :: (Float, StdGen)
+    (randSpeed, newGen'') = randomR (-250, -150) newGen :: (Float, StdGen)
 
 -- Returns enemy info if at least one enemy has yet to be spawned
 enemyInfo :: EnemyList -> (Float, String, EnemyList)
