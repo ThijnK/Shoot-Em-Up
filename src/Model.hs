@@ -26,7 +26,7 @@ data GameState = GameState {
   explosions    :: [Explosion],
   powerUps      :: [PowerUp],
   sprites       :: Sprites,
-  enemyList     :: (EnemyList, EnemyList), -- Also stores a copy of the original enemylist
+  spawnList     :: (SpawnList, SpawnList), -- Also stores a copy of the original enemylist
   generator     :: StdGen
 } deriving Generic
 
@@ -133,14 +133,13 @@ data PowerUp = PowerUp {
 } deriving (Eq, Generic)
 
 -- List used for spawning enemies at given times
-newtype EnemyList = EnemyList {enemies :: [EnemyListEnemy]} 
+newtype SpawnList = SpawnList {enemies :: [SpawnListItem]} 
   deriving (Show, Generic)
 
-data EnemyListEnemy = EnemyListEnemy
-  { eleTime :: Float,
-    eleType :: String
-  }
-  deriving (Show, Generic)
+data SpawnListItem = SpawnListItem { 
+  eleTime :: Float,
+  eleType :: String
+} deriving (Show, Generic)
 
 {-    __        __
      /\ \      /\ \       [ ]    _   _     _______

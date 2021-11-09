@@ -31,7 +31,7 @@ step secs gstate@GameState{score, paused, gameOver, timeElapsed, player, meteors
 -- | Update the entire GameState using the various update functions
 updateState :: Float -> GameState -> GameState
 updateState secs gstate@GameState{gameOver, timeElapsed, score, player, downKeys, meteors, explosions, powerUps} =
-  (spawnEnemies . updatePlayer . updateTurrets . updateDrones . updateKamikazes . updateEnemyBullets . updatePlayerBullets)
+  (spawnObjects . updatePlayer . updateTurrets . updateDrones . updateKamikazes . updateEnemyBullets . updatePlayerBullets)
   gstate{score = updateScore gameOver secs score,
          deltaTime = secs,
          timeElapsed = timeElapsed + secs,
@@ -89,8 +89,8 @@ checkPlayerCollision ds gstate = foldr check gstate ds where
   check :: Destructible a => a -> GameState -> GameState
   check d gstate'@GameState{player, explosions}
     | collide player d = case applyDamage player 45 of -- Colliding with any object or enemy does 45 damage (except power ups)
-        (False, p) -> gstate{gameOver = True, player = p, explosions = defaultExplosion (getPosition d) : explosions}
-        (True, p)  -> gstate{player = p, explosions = defaultExplosion (getPosition d) : explosions}
+        (False, p) -> destroy d gstate{gameOver = True, player = p, explosions = defaultExplosion (getPosition d) : explosions}
+        (True, p)  -> destroy d gstate{player = p, explosions = defaultExplosion (getPosition d) : explosions}
     | otherwise = gstate'
 
 -- Check collision of playe with power ups and apply their effects if any are found
@@ -104,6 +104,7 @@ checkPowerUps gstate@GameState{player, powerUps} = foldr checkPowerUp gstate pow
       fr@(FR _ _) -> destroy pu gstate{player = p{playerFr = ((fst . playerFr) p, fr)}}
       i@(Invincibility _) -> destroy pu gstate{player = p{playerHp = (fst playerHp, i)}}
     | otherwise = gstate
+
 -- | Update player bullets
 updatePlayerBullets :: GameState -> GameState
 updatePlayerBullets gstate@GameState{deltaTime, playerBullets} = foldr shootPlayerBullet gstate{playerBullets = pbs} pbs where
@@ -162,27 +163,31 @@ updateKamikazes gstate@GameState{player, deltaTime, kamikazes}
       | otherwise = angle
       where angle = anglePoints kamikazePos (playerPos player)
 
--- | Spawn enemies based on the enemyList
-spawnEnemies :: GameState -> GameState
-spawnEnemies gstate@GameState{timeElapsed, enemyList, meteors, turrets, drones, kamikazes, generator}
-  | timeElapsed > enemyTimer = addEnemy enemyType
+-- | Spawn enemies based on the spawnList
+spawnObjects :: GameState -> GameState
+spawnObjects gstate@GameState{timeElapsed, spawnList, meteors, turrets, drones, kamikazes, generator, powerUps}
+  | timeElapsed > spawnTimer = spawnObject spawnType
   | otherwise = gstate
   where
-    (enemyTimer, enemyType, newList) = enemyInfo (fst enemyList)
-    addEnemy :: String -> GameState
-    addEnemy "Turret" = gstate{enemyList = (newList, snd enemyList), turrets = defaultTurret (500, randYPos) randXPos : turrets, generator = newGen'}
-    addEnemy "Drone"  = gstate{enemyList = (newList, snd enemyList), drones = defaultDrone (500, randYPos) : drones, generator = newGen}
-    addEnemy "Meteor" = gstate{enemyList = (newList, snd enemyList), meteors = defaultMeteor (500, randYPos) randSpeed : meteors, generator = newGen''}
-    addEnemy "Kamikaze" = gstate{enemyList = (newList, snd enemyList), kamikazes = defaultKamikaze (500, randYPos) : kamikazes, generator = newGen''}
-    addEnemy _        = gstate{enemyList = (newList, snd enemyList), generator = newGen}
+    (spawnTimer, spawnType, newList) = spawnInfo (fst spawnList)
+    spawnObject :: String -> GameState
+    spawnObject "Turret" = gstate{spawnList = (newList, snd spawnList), turrets = defaultTurret (500, randYPos) randXPos : turrets, generator = newGen'}
+    spawnObject "Drone"  = gstate{spawnList = (newList, snd spawnList), drones = defaultDrone (500, randYPos) : drones, generator = newGen}
+    spawnObject "Meteor" = gstate{spawnList = (newList, snd spawnList), meteors = defaultMeteor (500, randYPos) randSpeed : meteors, generator = newGen''}
+    spawnObject "Kamikaze" = gstate{spawnList = (newList, snd spawnList), kamikazes = defaultKamikaze (500, randYPos) : kamikazes, generator = newGen}
+    spawnObject "HealthPU" = gstate{spawnList = (newList, snd spawnList), powerUps = defaultPowerUp (500, randYPos) defaultHpPU : powerUps, generator = newGen}
+    spawnObject "SpeedPU" = gstate{spawnList = (newList, snd spawnList), powerUps = defaultPowerUp (500, randYPos) defaultFrPU : powerUps, generator = newGen}
+    spawnObject "FireRatePU" = gstate{spawnList = (newList, snd spawnList), powerUps = defaultPowerUp (500, randYPos) defaultSpeedPU : powerUps, generator = newGen}
+    spawnObject "InvincPU" = gstate{spawnList = (newList, snd spawnList), powerUps = defaultPowerUp (500, randYPos) defaultInvincPU : powerUps, generator = newGen}
+    spawnObject _        = gstate{spawnList = (newList, snd spawnList), generator = newGen}
     (randYPos, newGen) = randomR (-250, 250) generator :: (Float, StdGen)
     (randXPos, newGen') = randomR (0, 450) generator :: (Float, StdGen)
     (randSpeed, newGen'') = randomR (-150, -70) generator :: (Float, StdGen)
 
 -- Returns enemy info if at least one enemy has yet to be spawned
-enemyInfo :: EnemyList -> (Float, String, EnemyList)
-enemyInfo eList@(EnemyList (EnemyListEnemy enemyTimer enemyType : xs)) = (enemyTimer, enemyType, EnemyList xs)
-enemyInfo eList@(EnemyList []) = (1.0 / 0, "", eList)
+spawnInfo :: SpawnList -> (Float, String, SpawnList)
+spawnInfo eList@(SpawnList (SpawnListItem enemyTimer enemyType : xs)) = (enemyTimer, enemyType, SpawnList xs)
+spawnInfo eList@(SpawnList []) = (1.0 / 0, "", eList)
 
 -- | Handle user input
 input :: Event -> GameState -> IO GameState
@@ -201,8 +206,8 @@ inputKey (EventKey (Char c) Down _ _) gstate@GameState{paused, downKeys}
 inputKey (EventKey (MouseButton LeftButton) Up _ _) gstate@GameState{paused, gameOver, deltaTime, player, playerBullets}
   | gameOver || paused = gstate
   | otherwise = let (p, pbs) = firePlayerBullet deltaTime gameOver player in gstate{player = p, playerBullets = pbs ++ playerBullets}
-inputKey (EventKey (SpecialKey KeyEnter) Up _ _) gstate@GameState{gameOver, sprites, enemyList, generator}
-  | gameOver = initialState sprites (snd enemyList) generator -- If the game is over and you press [Enter], you start over
+inputKey (EventKey (SpecialKey KeyEnter) Up _ _) gstate@GameState{gameOver, sprites, spawnList, generator}
+  | gameOver = initialState sprites (snd spawnList) generator -- If the game is over and you press [Enter], you start over
   | otherwise = gstate
 inputKey _ gstate = gstate
 

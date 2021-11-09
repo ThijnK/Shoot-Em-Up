@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
--- Contains functionality for saving and loading gamestate and enemyList to/from files
+-- Contains functionality for saving and loading gamestate and spawnList to/from files
 module SaveLoad where
 
 import Model
@@ -32,10 +32,10 @@ loadGame gstate@GameState{sprites, generator}
        return gstate'{saveLoad = (False, False)}
 
 -- Load enemy list from JSON file
-loadEnemyList :: IO EnemyList
-loadEnemyList = do enemyList <- BS.readFile "game/enemies.json"
-                   case decode enemyList of
-                     Nothing  -> return (EnemyList []) -- load failed, return empty list
+loadSpawnList :: IO SpawnList
+loadSpawnList = do spawnList <- BS.readFile "game/spawnlist.json"
+                   case decode spawnList of
+                     Nothing  -> print "Could not load spawn list." >> return (SpawnList []) -- load failed, return empty list
                      Just any -> return any
 
 -- Load sprites from .bmp files
@@ -98,8 +98,8 @@ instance ToJSON PowerUp
 instance ToJSON Animation
 instance ToJSON Sprites where
   toJSON sprites = object []
-instance ToJSON EnemyList
-instance ToJSON EnemyListEnemy
+instance ToJSON SpawnList
+instance ToJSON SpawnListItem
 instance ToJSON StdGen where
   toJSON stdgen = object []
 
@@ -124,7 +124,7 @@ instance FromJSON GameState where
       <*> v .: "explosions"
       <*> v .: "powerUps"
       <*> v .: "sprites"
-      <*> v .: "enemyList"
+      <*> v .: "spawnList"
       <*> v .: "generator"
 
 instance FromJSON Score
@@ -149,6 +149,6 @@ instance FromJSON StdGen where
   parseJSON = withObject "StdGen" $ \obj -> do
     return (mkStdGen 69)
 
--- Instances for loading EnemyList from JSON file
-instance FromJSON EnemyList
-instance FromJSON EnemyListEnemy
+-- Instances for loading SpawnList from JSON file
+instance FromJSON SpawnList
+instance FromJSON SpawnListItem
