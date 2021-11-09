@@ -1,4 +1,3 @@
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 -- | This module contains the data types
@@ -25,8 +24,9 @@ data GameState = GameState {
   enemyBullets  :: [EnemyBullet],
   meteors       :: [Meteor],
   explosions    :: [Explosion],
+  powerUps      :: [PowerUp],
   sprites       :: Sprites,
-  enemyList     :: (EnemyList, EnemyList), -- Also stores a copy of the original enemylist
+  spawnList     :: (SpawnList, SpawnList), -- Also stores a copy of the original spawnList
   bgList        :: [Background],
   generator     :: StdGen 
 } deriving Generic
@@ -48,7 +48,11 @@ data Sprites  = Sprites {
   droneSprites     :: [Picture],
   kamikazeSprite   :: Picture,
   explosionSprites :: [Picture],
-  backgroundSprites :: [Picture]
+  backgroundSprites :: [Picture],
+  hpPowerUp        :: Picture,
+  speedPowerUp     :: Picture,
+  frPowerUp        :: Picture,
+  invincPowerUp    :: Picture
 } deriving Generic
 
 data Explosion = Explosion {
@@ -60,9 +64,9 @@ data Explosion = Explosion {
 data Player = Player {
   playerPos    :: Point,
   playerOrient :: Float,
-  playerHp     :: Int,
-  playerSpeed  :: Float,
-  playerFr     :: FireRate,
+  playerHp     :: (Int, PowerUpType),
+  playerSpeed  :: (Float, PowerUpType),
+  playerFr     :: (FireRate, PowerUpType),
   playerHbox   :: Point,
   playerAnim   :: Animation
 } deriving (Eq, Generic)
@@ -126,23 +130,25 @@ data Background = Background {
   backgroundType     :: Int
 } deriving (Eq, Generic)
 
--- List used for spawning enemies at given times
-newtype EnemyList = EnemyList {enemies :: [EnemyListEnemy]} 
+data PowerUpType = Health Int | Speed Float Float | FR Float Float {-FireRate-} | Invincibility Float
+  deriving (Eq, Generic)
+
+data PowerUp = PowerUp {
+  puType   :: PowerUpType,
+  puPos    :: Point,
+  puOrient :: Float,
+  puSpeed  :: Float,
+  puHbox   :: Point
+} deriving (Eq, Generic)
+
+-- List used for spawning objects at given times
+newtype SpawnList = SpawnList {objects :: [SpawnListItem]} 
   deriving (Show, Generic)
 
-data EnemyListEnemy = EnemyListEnemy
-  { eleTime :: Float,
-    eleType :: String
-  }
-  deriving (Show, Generic)
-
-{-
-Power up ideas: 
-- Health Int
-- FireRate Int
-- Speed Int
-- Invincibility
--}
+data SpawnListItem = SpawnListItem { 
+  eleTime :: Float,
+  eleType :: String
+} deriving (Show, Generic)
 
 {-    __        __
      /\ \      /\ \       [ ]    _   _     _______

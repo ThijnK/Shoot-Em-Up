@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
--- Contains functionality for saving and loading gamestate and enemyList to/from files
+-- Contains functionality for saving and loading gamestate and spawnList to/from files
 module SaveLoad where
 
 import Model
@@ -32,10 +32,10 @@ loadGame gstate@GameState{sprites, generator}
        return gstate'{saveLoad = (False, False)}
 
 -- Load enemy list from JSON file
-loadEnemyList :: IO EnemyList
-loadEnemyList = do enemyList <- BS.readFile "game/enemies.json"
-                   case decode enemyList of
-                     Nothing  -> return (EnemyList []) -- load failed, return empty list
+loadSpawnList :: IO SpawnList
+loadSpawnList = do spawnList <- BS.readFile "game/spawnlist.json"
+                   case decode spawnList of
+                     Nothing  -> print "Could not load spawn list." >> return (SpawnList []) -- load failed, return empty list
                      Just any -> return any
 
 -- Load sprites from .bmp files
@@ -69,11 +69,15 @@ loadSprites = do player1     <- loadBMP "assets/player-1.bmp"
                  explosion11 <- loadBMP "assets/explosion-11.bmp"
                  bgSprite    <- loadBMP "assets/background.bmp"
                  bgSprite2   <- loadBMP "assets/background2.bmp"
+                 powerup1    <- loadBMP "assets/red-gem.bmp"
+                 powerup2    <- loadBMP "assets/green-gem.bmp"
+                 powerup3    <- loadBMP "assets/blue-gem.bmp"
+                 powerup4    <- loadBMP "assets/diamond-gem.bmp"
                  let player = [player1, player2, player3, player2, player1, player4, player5, player4]
                  let turret = [turret1, turret2, turret3, turret4]
                  let drone = [drone1, drone2, drone3, drone2]
                  let explosion = [explosion1, explosion2, explosion3, explosion4, explosion5, explosion6, explosion7, explosion8, explosion9, explosion10, explosion11]
-                 return (Sprites player bullet1 bullet2 meteor turret drone kamikaze explosion [bgSprite, bgSprite2])
+                 return (Sprites player bullet1 bullet2 meteor turret drone kamikaze explosion [bgSprite, bgSprite2] powerup1 powerup2 powerup3 powerup4)
 
 -- | Necessary instances for encoding and decoding JSON
 
@@ -91,11 +95,13 @@ instance ToJSON PlayerBullet
 instance ToJSON EnemyBullet
 instance ToJSON Meteor
 instance ToJSON Explosion
+instance ToJSON PowerUpType
+instance ToJSON PowerUp
 instance ToJSON Animation
 instance ToJSON Sprites where
   toJSON sprites = object []
-instance ToJSON EnemyList
-instance ToJSON EnemyListEnemy
+instance ToJSON SpawnList
+instance ToJSON SpawnListItem
 instance ToJSON Background
 instance ToJSON StdGen where
   toJSON stdgen = object []
@@ -119,8 +125,9 @@ instance FromJSON GameState where
       <*> v .: "enemyBullets"
       <*> v .: "meteors"
       <*> v .: "explosions"
+      <*> v .: "powerUps"
       <*> v .: "sprites"
-      <*> v .: "enemyList"
+      <*> v .: "spawnList"
       <*> v .: "bgList"
       <*> v .: "generator"
 
@@ -136,15 +143,17 @@ instance FromJSON EnemyBullet
 instance FromJSON Meteor
 instance FromJSON Explosion
 instance FromJSON Background
+instance FromJSON PowerUpType
+instance FromJSON PowerUp
 
 instance FromJSON Sprites where
   parseJSON = withObject "Sprites" $ \obj -> do
-    return (Sprites {playerSprites = [Blank], pBulletSprite = Blank, eBulletSprite = Blank, meteorSprite = Blank, turretSprites = [Blank], droneSprites = [Blank], kamikazeSprite = Blank, explosionSprites = [Blank], backgroundSprites = [Blank]})
+    return (Sprites {playerSprites = [Blank], pBulletSprite = Blank, eBulletSprite = Blank, meteorSprite = Blank, turretSprites = [Blank], droneSprites = [Blank], kamikazeSprite = Blank, explosionSprites = [Blank], backgroundSprites = [Blank], hpPowerUp = Blank, speedPowerUp = Blank, frPowerUp = Blank, invincPowerUp = Blank})
   
 instance FromJSON StdGen where
   parseJSON = withObject "StdGen" $ \obj -> do
     return (mkStdGen 69)
 
--- Instances for loading EnemyList from JSON file
-instance FromJSON EnemyList
-instance FromJSON EnemyListEnemy
+-- Instances for loading SpawnList from JSON file
+instance FromJSON SpawnList
+instance FromJSON SpawnListItem

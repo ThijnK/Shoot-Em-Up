@@ -6,8 +6,8 @@ import Model
 import Graphics.Gloss ( Point )
 import System.Random ( StdGen )
 
-initialState :: Sprites -> EnemyList -> StdGen -> GameState
-initialState sprites enemyList generator = GameState {
+initialState :: Sprites -> SpawnList -> StdGen -> GameState
+initialState sprites spawnList generator = GameState {
   score         = Score 0 2 0, -- Increase score by 1 every 2 seconds
   paused        = False,
   gameOver      = False,
@@ -18,9 +18,9 @@ initialState sprites enemyList generator = GameState {
   player        = Player {
     playerPos = (-100, 0),
     playerOrient = 0,
-    playerHp = 100,
-    playerSpeed = 300,
-    playerFr = FireRate 0.10 0,
+    playerHp = (100, Invincibility 0),
+    playerSpeed = (250, Speed 0 0),
+    playerFr = (FireRate 0.10 0, FR 0 0),
     playerHbox = (18, 8),
     playerAnim = Animation 0 8 0.2 0
   },
@@ -31,8 +31,9 @@ initialState sprites enemyList generator = GameState {
   enemyBullets  = [],
   meteors       = [],
   explosions    = [],
+  powerUps      = [],
   sprites       = sprites,
-  enemyList     = (enemyList, enemyList),
+  spawnList     = (spawnList, spawnList),
   bgList        = [Background 0 (-100.0) 0,  Background 1024 (-100.0) 0, Background 512 (-200.0) 1, Background 1537 (-200.0) 1],
   generator     = generator
 }
@@ -57,3 +58,18 @@ defaultPlayerBullet pos = PlayerBullet pos 0 25 1000 (10,2)
 
 defaultEnemyBullet :: Point -> Float -> EnemyBullet
 defaultEnemyBullet pos orient = EnemyBullet pos orient 5 500 (10,2)
+
+defaultHpPU :: PowerUpType
+defaultHpPU = Health 50 -- Gain 50 hp for every health power up that is picked up
+
+defaultSpeedPU :: PowerUpType
+defaultSpeedPU = Speed 50 3 -- 50 speed increase for 3 seconds
+
+defaultFrPU :: PowerUpType 
+defaultFrPU = FR 0.05 3
+
+defaultInvincPU :: PowerUpType
+defaultInvincPU = Invincibility 5 -- Become invincible (take no damage) for 5 seconds
+
+defaultPowerUp :: Point -> PowerUpType -> PowerUp
+defaultPowerUp pos t = PowerUp t pos 0 (-150) (8,8)

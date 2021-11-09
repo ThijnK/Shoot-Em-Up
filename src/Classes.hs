@@ -19,44 +19,49 @@ class Positionable a where
   -- changeOrientation :: a -> Float -> a
 
 instance Positionable Player where
-  getPosition Player{playerPos} = playerPos
-  getOrientation Player{playerOrient} = playerOrient
+  getPosition = playerPos
+  getOrientation = playerOrient
   changePosition p@Player{playerPos = (x,y)} (mx,my) = p{playerPos = (clamp (x + mx) (-500,0), clamp (y + my) (-300,300))}
 
 instance Positionable Turret where
-  getPosition Turret{turretPos} = turretPos
-  getOrientation Turret{turretOrient} = turretOrient
+  getPosition = turretPos
+  getOrientation = turretOrient
   changePosition t@Turret{turretPos = (x,y)} (mx,my) = t{turretPos = (x + mx, y + my)}
 
 instance Positionable Drone where
-  getPosition Drone{dronePos} = dronePos
-  getOrientation Drone{droneOrient} = droneOrient
+  getPosition = dronePos
+  getOrientation = droneOrient
   changePosition d@Drone{dronePos = (x,y)} (mx,my) = d{dronePos = (x + mx, y + my)}
 
 instance Positionable Kamikaze where
-  getPosition Kamikaze{kamikazePos} = kamikazePos
-  getOrientation Kamikaze{kamikazeOrient} = kamikazeOrient
+  getPosition = kamikazePos
+  getOrientation = kamikazeOrient
   changePosition k@Kamikaze{kamikazePos = (x,y)} (mx,my) = k{kamikazePos = (x + mx, y + my)}
 
 instance Positionable PlayerBullet where
-  getPosition PlayerBullet{pbPos} = pbPos
-  getOrientation PlayerBullet{pbOrient} = pbOrient
+  getPosition = pbPos
+  getOrientation = pbOrient
   changePosition pb@PlayerBullet{pbPos = (x,y)} (mx,my) = pb{pbPos = (x + mx, y + my)}
 
 instance Positionable EnemyBullet where
-  getPosition EnemyBullet{ebPos} = ebPos
-  getOrientation EnemyBullet{ebOrient} = ebOrient
+  getPosition = ebPos
+  getOrientation = ebOrient
   changePosition eb@EnemyBullet{ebPos = (x,y)} (mx,my) = eb{ebPos = (x + mx, y + my)}
 
 instance Positionable Meteor where
-  getPosition Meteor{meteorPos} = meteorPos
-  getOrientation Meteor{meteorOrient} = meteorOrient
+  getPosition = meteorPos
+  getOrientation = meteorOrient
   changePosition o@Meteor{meteorPos = (x,y)} (mx,my) = o{meteorPos = (x + mx, y + my)}
 
 instance Positionable Explosion where
-  getPosition Explosion{explosionPos} = explosionPos
-  getOrientation Explosion{explosionOrient} = explosionOrient
+  getPosition = explosionPos
+  getOrientation = explosionOrient
   changePosition e@Explosion{explosionPos = (x,y)} (mx,my) = e{explosionPos = (x + mx, y + my)}
+
+instance Positionable PowerUp where
+  getPosition = puPos
+  getOrientation = puOrient
+  changePosition pu@PowerUp{puPos = (x,y)} (mx,my) = pu{puPos = (x + mx, y + my)}
 
 -- | Drawable type class
 class Positionable a => Drawable a where
@@ -90,6 +95,12 @@ instance Drawable Meteor where
 instance Drawable Explosion where
   getSprite Sprites{explosionSprites} Explosion{explosionAnim = Animation index _ _ _} = explosionSprites !! index
 
+instance Drawable PowerUp where
+  getSprite Sprites{hpPowerUp} PowerUp{puType = Health _} = hpPowerUp
+  getSprite Sprites{speedPowerUp} PowerUp{puType = Speed _ _} = speedPowerUp
+  getSprite Sprites{frPowerUp} PowerUp{puType = FR _ _} = frPowerUp
+  getSprite Sprites{invincPowerUp} PowerUp{puType = Invincibility _} = invincPowerUp
+
 draw :: Float -> Point -> Picture -> Picture
 draw orientation (x,y) = translate x y . rotate (radToDeg (-orientation))
 
@@ -103,25 +114,28 @@ class Collideable a where
   getHitbox :: a -> Point
 
 instance Collideable Player where
-  getHitbox Player{playerHbox} = playerHbox
+  getHitbox = playerHbox
 
 instance Collideable Turret where
-  getHitbox Turret{turretHbox} = turretHbox
+  getHitbox = turretHbox
 
 instance Collideable Drone where
-  getHitbox Drone{droneHbox} = droneHbox
+  getHitbox = droneHbox
 
 instance Collideable Kamikaze where
-  getHitbox Kamikaze{kamikazeHbox} = kamikazeHbox
+  getHitbox = kamikazeHbox
 
 instance Collideable PlayerBullet where
-  getHitbox PlayerBullet{pbHbox} = pbHbox
+  getHitbox = pbHbox
 
 instance Collideable EnemyBullet where
-  getHitbox EnemyBullet{ebHbox} = ebHbox
+  getHitbox = ebHbox
 
 instance Collideable Meteor where
-  getHitbox Meteor{meteorHbox} = meteorHbox
+  getHitbox = meteorHbox
+
+instance Collideable PowerUp where
+  getHitbox = puHbox
 
 -- | Destructible type class
 class (Positionable a, Collideable a, Eq a) => Destructible a where
@@ -130,10 +144,12 @@ class (Positionable a, Collideable a, Eq a) => Destructible a where
   update :: Int -> a -> GameState -> GameState
 
 instance Destructible Player where
-  applyDamage player@Player {playerHp} damage
-    | playerHp - damage <= 0 = (False, player{playerHp = playerHp - damage})
-    | otherwise = (True, player{playerHp = playerHp - damage})
-  destroy p gstate = update 0 p{playerHp = 0} gstate{gameOver = True}
+  applyDamage player@Player {playerHp = (hp, Invincibility n)} damage
+    | n > 0 = (True, player) -- If invincibility is active, no damage is taken
+    | hp - damage <= 0 = (False, player{playerHp = (hp - damage, Invincibility n)})
+    | otherwise = (True, player{playerHp = (hp - damage, Invincibility n)})
+  applyDamage player _ = (True, player)
+  destroy p gstate = update 0 p{playerHp = (0, Invincibility 0)} gstate{gameOver = True}
   update _ p gstate = gstate{player = p}
 
 instance Destructible Turret where
@@ -165,14 +181,19 @@ instance Destructible Meteor where
   update i o gstate@GameState{meteors} = gstate{meteors = replace i o meteors}
 
 instance Destructible PlayerBullet where
-  applyDamage pb damage = undefined -- not used
+  applyDamage = undefined -- not used
   destroy pb gstate@GameState{playerBullets} = gstate{playerBullets = delete pb playerBullets}
   update i pb gstate@GameState{playerBullets} = gstate{playerBullets = replace i pb playerBullets}
 
 instance Destructible EnemyBullet where
-  applyDamage eb damage = undefined
+  applyDamage = undefined
   destroy eb gstate@GameState{enemyBullets} = gstate{enemyBullets = delete eb enemyBullets}
   update i eb gstate@GameState{enemyBullets} = gstate{enemyBullets = replace i eb enemyBullets}
+
+instance Destructible PowerUp where
+  applyDamage = undefined
+  destroy pu gstate@GameState{powerUps} = gstate{powerUps = delete pu powerUps}
+  update i pu gstate@GameState{powerUps} = gstate{powerUps = replace i pu powerUps}
 
 -- | Moveable type class
 class Positionable a => Moveable a where
@@ -183,26 +204,29 @@ class Positionable a => Moveable a where
     speed = getSpeed a
 
 instance Moveable PlayerBullet where
-  getSpeed PlayerBullet{pbSpeed} = pbSpeed
+  getSpeed = pbSpeed
 
 instance Moveable Meteor where
-  getSpeed Meteor {meteorSpeed} = meteorSpeed
+  getSpeed = meteorSpeed
 
 instance Moveable Turret where
-  getSpeed Turret{turretSpeed} = turretSpeed
+  getSpeed = turretSpeed
   -- Custom movement for turrets
   move secs t@Turret{turretPos = (x, y), turretOrient, turretSpeed, turretTarget}
     | x < turretTarget = changePosition t{turretOrient = turretOrient + 0.05, turretTarget = turretTarget + 50} (secs * turretSpeed * cos turretOrient, secs * turretSpeed * sin turretOrient)
     | otherwise        = changePosition t (secs * turretSpeed, 0)
 
 instance Moveable Drone where
-  getSpeed Drone{droneSpeed} = droneSpeed
+  getSpeed = droneSpeed
 
 instance Moveable Kamikaze where
-  getSpeed Kamikaze{kamikazeSpeed} = kamikazeSpeed
+  getSpeed = kamikazeSpeed
 
 instance Moveable EnemyBullet where
-  getSpeed EnemyBullet{ebSpeed} = ebSpeed
+  getSpeed = ebSpeed
+
+instance Moveable PowerUp where
+  getSpeed = puSpeed
 
 -- | Shootable type class
 class (Positionable a, Collideable a) => Shootable a where

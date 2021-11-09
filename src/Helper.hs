@@ -1,5 +1,3 @@
-{-# LANGUAGE NamedFieldPuns #-}
-
 -- Contains helper functions used in multiple places in the code
 module Helper where
 
