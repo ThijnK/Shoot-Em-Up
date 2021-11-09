@@ -1,5 +1,5 @@
 {
-	"enemies": [
+	"objects": [
 		{ "eleTime": 1.5, "eleType": "Meteor" },
 		{ "eleTime": 1.5, "eleType": "HealthPU" },
 		{ "eleTime": 3.5, "eleType": "Meteor" },
