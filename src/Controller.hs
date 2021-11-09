@@ -15,7 +15,6 @@ import System.Random ( Random(randomR), StdGen )
 import Data.List ( delete )
 import Data.Maybe ( mapMaybe )
 
-
 step :: Float -> GameState -> IO GameState
 step secs gstate@GameState{score, paused, gameOver, timeElapsed, player, meteors, downKeys, saveLoad = (wantsToSave, wantsToLoad), explosions}
   -- Check if the player pressed the save or load key
@@ -31,13 +30,14 @@ step secs gstate@GameState{score, paused, gameOver, timeElapsed, player, meteors
 
 -- | Update the entire GameState using the various update functions
 updateState :: Float -> GameState -> GameState
-updateState secs gstate@GameState{gameOver, timeElapsed, score, player, downKeys, meteors, explosions} =
+updateState secs gstate@GameState{gameOver, timeElapsed, score, player, downKeys, meteors, explosions, powerUps} =
   (spawnEnemies . updatePlayer . updateTurrets . updateDrones . updateKamikazes . updateEnemyBullets . updatePlayerBullets)
   gstate{score = updateScore gameOver secs score,
          deltaTime = secs,
          timeElapsed = timeElapsed + secs,
          explosions = updateExplosions secs explosions,
-         meteors = map (move secs) meteors
+         meteors = map (move secs) meteors,
+         powerUps = filter withinBounds (map (move secs) powerUps)
         }
 
 -- | Handle game over
@@ -57,13 +57,25 @@ increaseScore x s@(Score n incr last) = Score (n + x) incr last
 
 -- | Update player
 updatePlayer :: GameState -> GameState
-updatePlayer gstate@GameState{player, deltaTime, downKeys, turrets, drones, meteors, kamikazes}
-  = (checkCollision turrets . checkCollision drones . checkCollision meteors . checkCollision kamikazes)
-    gstate{player = p{playerFr = FireRate fr (last + deltaTime), playerAnim = animateR deltaTime (playerAnim player)}} where
-      (FireRate fr last) = playerFr player
-      p = changePosition player (foldr (checkKey (playerSpeed player * deltaTime)) (0,0) downKeys) -- Move based on the keys currently being held down
+updatePlayer gstate@GameState{player, deltaTime, downKeys, turrets, drones, meteors, kamikazes, powerUps}
+  = (checkPowerUps . checkPlayerCollision turrets . checkPlayerCollision drones . checkPlayerCollision meteors . checkPlayerCollision kamikazes)
+    gstate{player = (movePlayer downKeys deltaTime player){
+      playerHp = let (hp, Invincibility t) = playerHp player in (hp, Invincibility (t - deltaTime)),
+      playerFr = let (FireRate fr last, FR n t) = playerFr player in (FireRate fr (last + deltaTime), FR n (t - deltaTime)),
+      playerSpeed = let (s, Speed n t) = playerSpeed player in (s, Speed n (t - deltaTime)),
+      playerAnim = animateR deltaTime (playerAnim player)
+    }}
 
--- Adds to the x y movement based on the received key (that is being held down)
+movePlayer :: [Char] -> Float -> Player -> Player
+movePlayer downKeys secs p@Player{playerSpeed = (s, Speed n t)} = changePosition p getMovement where
+  getMovement :: (Float,Float)
+  getMovement = foldr (checkKey getSpeed) (0,0) downKeys
+  getSpeed :: Float
+  getSpeed | t > 0     = (s + n) * secs
+           | otherwise = s * secs
+movePlayer _ _ p = p
+
+-- Adds to the x y movement based on the key that is being held down
 checkKey :: Float -> Char -> (Float, Float) -> (Float, Float)
 checkKey n 's' (x,y) = (x, y - n)
 checkKey n 'a' (x,y) = (x - n, y)
@@ -72,20 +84,32 @@ checkKey n 'd' (x,y) = (x + n, y)
 checkKey _ _   acc   = acc
 
 -- Check collision of player with given enemies/obstacles
-checkCollision :: Destructible b => [b] -> GameState -> GameState
-checkCollision ds gstate = foldr check gstate ds where
+checkPlayerCollision :: Destructible a => [a] -> GameState -> GameState
+checkPlayerCollision ds gstate = foldr check gstate ds where
+  check :: Destructible a => a -> GameState -> GameState
   check d gstate'@GameState{player, explosions}
-    | collide player d = case applyDamage player 45 of
-                            (False, p) -> destroy d gstate'{gameOver = True, player = p, explosions = defaultExplosion (getPosition d) : explosions}
-                            (True, p)  -> destroy d gstate'{player = p, explosions = defaultExplosion (getPosition d) : explosions}
+    | collide player d = case applyDamage player 45 of -- Colliding with any object or enemy does 45 damage (except power ups)
+        (False, p) -> gstate{gameOver = True, player = p, explosions = defaultExplosion (getPosition d) : explosions}
+        (True, p)  -> gstate{player = p, explosions = defaultExplosion (getPosition d) : explosions}
     | otherwise = gstate'
 
+-- Check collision of playe with power ups and apply their effects if any are found
+checkPowerUps :: GameState -> GameState
+checkPowerUps gstate@GameState{player, powerUps} = foldr checkPowerUp gstate powerUps where
+  checkPowerUp :: PowerUp -> GameState -> GameState
+  checkPowerUp pu@PowerUp{puType} gstate@GameState{player = p@Player{playerHp}}
+    | collide player pu = case puType of
+      Health n -> destroy pu gstate{player = p{playerHp = (max 100 (fst playerHp + n), snd playerHp)}}
+      s@(Speed _ _) -> destroy pu gstate{player = p{playerSpeed = ((fst . playerSpeed) p, s)}}
+      fr@(FR _ _) -> destroy pu gstate{player = p{playerFr = ((fst . playerFr) p, fr)}}
+      i@(Invincibility _) -> destroy pu gstate{player = p{playerHp = (fst playerHp, i)}}
+    | otherwise = gstate
 -- | Update player bullets
 updatePlayerBullets :: GameState -> GameState
 updatePlayerBullets gstate@GameState{deltaTime, playerBullets} = foldr shootPlayerBullet gstate{playerBullets = pbs} pbs where
   pbs = (filter withinBounds . map (move deltaTime)) playerBullets
   shootPlayerBullet :: PlayerBullet -> GameState -> GameState -- Check the collision of this bullet with meteors and all enemies
-  shootPlayerBullet pb gstate@GameState{meteors, turrets, drones, kamikazes} 
+  shootPlayerBullet pb gstate@GameState{meteors, turrets, drones, kamikazes}
     = snd ((shootBullet meteors . shootBullet turrets . shootBullet drones . shootBullet kamikazes) (Just pb, gstate))
 
 -- | Update enemy bullets
@@ -184,9 +208,11 @@ inputKey _ gstate = gstate
 
 -- Fires a player bullet from the current position of the player
 firePlayerBullet :: Float -> Bool -> Player -> (Player, [PlayerBullet])
-firePlayerBullet secs False p@Player{playerPos, playerFr = FireRate fr last}
-  | last + secs > fr = (p{playerFr = FireRate fr 0}, [defaultPlayerBullet playerPos])
+firePlayerBullet secs False p@Player{playerPos, playerFr = (FireRate fireRate last, FR n t)}
+  | last + secs > fr = (p{playerFr = (FireRate fr 0, FR n t)}, [defaultPlayerBullet playerPos])
   | otherwise = (p, [])
+  where fr | t > 0 = fireRate - n
+           | otherwise = fireRate
 firePlayerBullet _ _ p = (p,[])
 
 -- | General helper functions that depend on certain type classes (can't define those in Helper.hs)
@@ -202,13 +228,6 @@ shootBullet _ x = x
 checkIncreaseScore :: Bool -> GameState -> GameState
 checkIncreaseScore True  gstate@GameState{score} = gstate{score = increaseScore 10 score}
 checkIncreaseScore False gstate                  = gstate
-
--- Remove an object from gamestate if it's outside of bounds
-filter' :: Destructible a => a -> GameState -> (Bool, GameState)
-filter' a gstate
-  | not (withinBounds a) = (False, destroy a gstate)
-  | otherwise = (True, gstate)
-  where (x,_) = getPosition a
 
 -- Checks whether an object is within bounds
 withinBounds :: Positionable a => a -> Bool

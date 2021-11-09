@@ -14,7 +14,7 @@ view :: GameState -> IO Picture
 view = return . viewPure
 
 viewPure :: GameState -> Picture
-viewPure gstate@GameState{gameOver, player, turrets, drones, kamikazes, playerBullets, enemyBullets, meteors, explosions, sprites}
+viewPure gstate@GameState{gameOver, player, turrets, drones, kamikazes, playerBullets, enemyBullets, meteors, explosions, sprites, powerUps}
   | gameOver = objects -- Don't draw player when game is over
   | otherwise = pictures [objects, toPicture sprites player]
   where objects = pictures (map (toPicture sprites) playerBullets
@@ -24,6 +24,7 @@ viewPure gstate@GameState{gameOver, player, turrets, drones, kamikazes, playerBu
                             ++ map (toPicture sprites) kamikazes
                             ++ map (toPicture sprites) meteors
                             ++ map (toPicture sprites) explosions
+                            ++ map (toPicture sprites) powerUps
                             ++ drawUI gstate
                           )
 
@@ -37,5 +38,5 @@ drawUI gstate@GameState{player, paused, gameOver, score = Score n _ _}
            : ui
   | otherwise = ui
   where ui = [(translate (-100) 280 . color white . scale 0.15 0.15 . text) ("Score: " ++ show n),
-              (translate 30 280 . color white . scale 0.15 0.15 . text) ("Hp: " ++ show (max (playerHp player) 0))
+              (translate 30 280 . color white . scale 0.15 0.15 . text) ("Hp: " ++ show (max ((fst . playerHp) player) 0))
              ]

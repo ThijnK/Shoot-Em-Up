@@ -1,4 +1,3 @@
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 -- | This module contains the data types
@@ -25,9 +24,10 @@ data GameState = GameState {
   enemyBullets  :: [EnemyBullet],
   meteors       :: [Meteor],
   explosions    :: [Explosion],
+  powerUps      :: [PowerUp],
   sprites       :: Sprites,
   enemyList     :: (EnemyList, EnemyList), -- Also stores a copy of the original enemylist
-  generator     :: StdGen 
+  generator     :: StdGen
 } deriving Generic
 
 data Score = Score Int Float Float -- currentScore scoreIncrease(1 / scorePerSecond) secondsSinceLastIncrease
@@ -46,7 +46,11 @@ data Sprites  = Sprites {
   turretSprites    :: [Picture],
   droneSprites     :: [Picture],
   kamikazeSprite   :: Picture,
-  explosionSprites :: [Picture]
+  explosionSprites :: [Picture],
+  hpPowerUp        :: Picture,
+  speedPowerUp     :: Picture,
+  frPowerUp        :: Picture,
+  invincPowerUp    :: Picture
 } deriving Generic
 
 data Explosion = Explosion {
@@ -58,9 +62,9 @@ data Explosion = Explosion {
 data Player = Player {
   playerPos    :: Point,
   playerOrient :: Float,
-  playerHp     :: Int,
-  playerSpeed  :: Float,
-  playerFr     :: FireRate,
+  playerHp     :: (Int, PowerUpType),
+  playerSpeed  :: (Float, PowerUpType),
+  playerFr     :: (FireRate, PowerUpType),
   playerHbox   :: Point,
   playerAnim   :: Animation
 } deriving (Eq, Generic)
@@ -118,6 +122,16 @@ data Meteor = Meteor {
   meteorHbox   :: Point
 } deriving (Eq, Generic)
 
+data PowerUpType = Health Int | Speed Float Float | FR Float Float {-FireRate-} | Invincibility Float
+  deriving (Eq, Generic)
+data PowerUp = PowerUp {
+  puType   :: PowerUpType,
+  puPos    :: Point,
+  puOrient :: Float,
+  puSpeed  :: Float,
+  puHbox   :: Point
+} deriving (Eq, Generic)
+
 -- List used for spawning enemies at given times
 newtype EnemyList = EnemyList {enemies :: [EnemyListEnemy]} 
   deriving (Show, Generic)
@@ -127,14 +141,6 @@ data EnemyListEnemy = EnemyListEnemy
     eleType :: String
   }
   deriving (Show, Generic)
-
-{-
-Power up ideas: 
-- Health Int
-- FireRate Int
-- Speed Int
-- Invincibility
--}
 
 {-    __        __
      /\ \      /\ \       [ ]    _   _     _______

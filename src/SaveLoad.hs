@@ -67,11 +67,15 @@ loadSprites = do player1     <- loadBMP "assets/player-1.bmp"
                  explosion9  <- loadBMP "assets/explosion-09.bmp"
                  explosion10 <- loadBMP "assets/explosion-10.bmp"
                  explosion11 <- loadBMP "assets/explosion-11.bmp"
+                 powerup1    <- loadBMP "assets/red-gem.bmp"
+                 powerup2    <- loadBMP "assets/green-gem.bmp"
+                 powerup3    <- loadBMP "assets/blue-gem.bmp"
+                 powerup4    <- loadBMP "assets/diamond-gem.bmp"
                  let player = [player1, player2, player3, player2, player1, player4, player5, player4]
                  let turret = [turret1, turret2, turret3, turret4]
                  let drone = [drone1, drone2, drone3, drone2]
                  let explosion = [explosion1, explosion2, explosion3, explosion4, explosion5, explosion6, explosion7, explosion8, explosion9, explosion10, explosion11]
-                 return (Sprites player bullet1 bullet2 meteor turret drone kamikaze explosion)
+                 return (Sprites player bullet1 bullet2 meteor turret drone kamikaze explosion powerup1 powerup2 powerup3 powerup4)
 
 -- | Necessary instances for encoding and decoding JSON
 
@@ -89,6 +93,8 @@ instance ToJSON PlayerBullet
 instance ToJSON EnemyBullet
 instance ToJSON Meteor
 instance ToJSON Explosion
+instance ToJSON PowerUpType
+instance ToJSON PowerUp
 instance ToJSON Animation
 instance ToJSON Sprites where
   toJSON sprites = object []
@@ -116,6 +122,7 @@ instance FromJSON GameState where
       <*> v .: "enemyBullets"
       <*> v .: "meteors"
       <*> v .: "explosions"
+      <*> v .: "powerUps"
       <*> v .: "sprites"
       <*> v .: "enemyList"
       <*> v .: "generator"
@@ -131,10 +138,12 @@ instance FromJSON PlayerBullet
 instance FromJSON EnemyBullet
 instance FromJSON Meteor
 instance FromJSON Explosion
+instance FromJSON PowerUpType
+instance FromJSON PowerUp
 
 instance FromJSON Sprites where
   parseJSON = withObject "Sprites" $ \obj -> do
-    return (Sprites {playerSprites = [Blank], pBulletSprite = Blank, eBulletSprite = Blank, meteorSprite = Blank, turretSprites = [Blank], droneSprites = [Blank], kamikazeSprite = Blank, explosionSprites = [Blank]})
+    return (Sprites {playerSprites = [Blank], pBulletSprite = Blank, eBulletSprite = Blank, meteorSprite = Blank, turretSprites = [Blank], droneSprites = [Blank], kamikazeSprite = Blank, explosionSprites = [Blank], hpPowerUp = Blank, speedPowerUp = Blank, frPowerUp = Blank, invincPowerUp = Blank})
   
 instance FromJSON StdGen where
   parseJSON = withObject "StdGen" $ \obj -> do

@@ -18,9 +18,9 @@ initialState sprites enemyList generator = GameState {
   player        = Player {
     playerPos = (-100, 0),
     playerOrient = 0,
-    playerHp = 100,
-    playerSpeed = 300,
-    playerFr = FireRate 0.10 0,
+    playerHp = (100, Invincibility 0),
+    playerSpeed = (300, Speed 0 0),
+    playerFr = (FireRate 0.10 0, FR 0 0),
     playerHbox = (18, 8),
     playerAnim = Animation 0 8 0.2 0
   },
@@ -31,6 +31,7 @@ initialState sprites enemyList generator = GameState {
   enemyBullets  = [],
   meteors       = [],
   explosions    = [],
+  powerUps      = [defaultPowerUp (200,0) (Health 50)],
   sprites       = sprites,
   enemyList     = (enemyList, enemyList),
   generator     = generator
@@ -56,3 +57,6 @@ defaultPlayerBullet pos = PlayerBullet pos 0 25 1000 (10,2)
 
 defaultEnemyBullet :: Point -> Float -> EnemyBullet
 defaultEnemyBullet pos orient = EnemyBullet pos orient 5 500 (10,2)
+
+defaultPowerUp :: Point -> PowerUpType -> PowerUp
+defaultPowerUp pos t = PowerUp t pos 0 (-150) (8,8)
