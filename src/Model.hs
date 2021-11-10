@@ -17,6 +17,7 @@ data GameState = GameState {
   downKeys      :: [Char],
   saveLoad      :: (Bool, Bool), -- (wantsToSave, wantsToLoad)
   player        :: Player,
+  activePUs     :: [PowerUpType],
   turrets       :: [Turret],
   drones        :: [Drone],
   kamikazes     :: [Kamikaze],
@@ -43,7 +44,7 @@ data Sprites  = Sprites {
   playerSprites    :: [Picture],
   pBulletSprite    :: Picture,
   eBulletSprite    :: Picture,
-  meteorSprite   :: Picture,
+  meteorSprite     :: Picture,
   turretSprites    :: [Picture],
   droneSprites     :: [Picture],
   kamikazeSprite   :: Picture,
@@ -64,9 +65,9 @@ data Explosion = Explosion {
 data Player = Player {
   playerPos    :: Point,
   playerOrient :: Float,
-  playerHp     :: (Int, PowerUpType),
-  playerSpeed  :: (Float, PowerUpType),
-  playerFr     :: (FireRate, PowerUpType),
+  playerHp     :: (Int, Bool),
+  playerSpeed  :: Float,
+  playerFr     :: FireRate,
   playerHbox   :: Point,
   playerAnim   :: Animation
 } deriving (Eq, Generic)
@@ -132,6 +133,12 @@ data Background = Background {
 
 data PowerUpType = Health Int | Speed Float Float | FR Float Float {-FireRate-} | Invincibility Float
   deriving (Eq, Generic)
+
+instance Show PowerUpType where
+  show (Speed _ t) = "Speed increased: " ++ take 4 (show t) ++ "s"
+  show (FR _ t)    = "Fire rate increased: " ++ take 4 (show t) ++ "s"
+  show (Invincibility t) = "Invincible: " ++ take 4 (show t) ++ "s"
+  show _ = mempty
 
 data PowerUp = PowerUp {
   puType   :: PowerUpType,

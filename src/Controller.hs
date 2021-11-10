@@ -30,16 +30,19 @@ step secs gstate@GameState{score, paused, gameOver, timeElapsed, player, meteors
 
 -- | Update the entire GameState using the various update functions
 updateState :: Float -> GameState -> GameState
-updateState secs gstate@GameState{gameOver, timeElapsed, score, player, downKeys, meteors, explosions, powerUps, bgList} =
+updateState secs gstate@GameState{gameOver, timeElapsed, score, player, activePUs, downKeys, meteors, explosions, powerUps, bgList} =
   (spawnObjects . updatePlayer . updateTurrets . updateDrones . updateKamikazes . updateEnemyBullets . updatePlayerBullets)
   gstate{score = updateScore gameOver secs score,
          deltaTime = secs,
          timeElapsed = timeElapsed + secs,
+         player = p,
+         activePUs = aps,
          explosions = updateExplosions secs explosions,
          meteors = map (move secs) meteors,
          bgList = updateBGList gstate secs,
          powerUps = filter withinBounds (map (move secs) powerUps)
         }
+  where (aps, p) = updateActivePUs activePUs player secs
 
 -- | Handle game over
 order66 :: GameState -> GameState
@@ -56,25 +59,33 @@ updateScore False secs s@(Score n incr last)
 increaseScore :: Int -> Score -> Score
 increaseScore x s@(Score n incr last) = Score (n + x) incr last
 
+-- | Update active power ups
+updateActivePUs :: [PowerUpType] -> Player -> Float -> ([PowerUpType], Player)
+updateActivePUs ps p secs = foldr updatePU ([],p) ps where
+  updatePU :: PowerUpType -> ([PowerUpType], Player) -> ([PowerUpType], Player)
+  updatePU pu@(Speed n t) (ps, p) = passPU (Speed n (t - secs)) t ps p (\p -> p{playerSpeed = playerSpeed p - n})
+  updatePU pu@(FR n t) (ps, p)    = passPU (FR n (t - secs)) t ps p (\p@Player{playerFr = FireRate fr last} -> p{playerFr = FireRate (fr + n) last})
+  updatePU pu@(Invincibility t) (ps, p) = passPU (Invincibility (t - secs)) t ps p (\p -> p{playerHp = ((fst . playerHp) p, False)})
+  updatePU _ acc = acc
+  -- Only adds the given PU to the list if it's still active
+  passPU :: PowerUpType -> Float -> [PowerUpType] -> Player -> (Player -> Player) -> ([PowerUpType], Player)
+  passPU pu t ps p f
+    | t <= 0 = (ps, f p)
+    | otherwise = (pu : ps, p)
+
 -- | Update player
 updatePlayer :: GameState -> GameState
 updatePlayer gstate@GameState{player, deltaTime, downKeys, turrets, drones, meteors, kamikazes, powerUps}
   = (checkPowerUps . checkPlayerCollision turrets . checkPlayerCollision drones . checkPlayerCollision meteors . checkPlayerCollision kamikazes)
     gstate{player = (movePlayer downKeys deltaTime player){
-      playerHp = let (hp, Invincibility t) = playerHp player in (hp, Invincibility (t - deltaTime)),
-      playerFr = let (FireRate fr last, FR n t) = playerFr player in (FireRate fr (last + deltaTime), FR n (t - deltaTime)),
-      playerSpeed = let (s, Speed n t) = playerSpeed player in (s, Speed n (t - deltaTime)),
+      playerFr = let (FireRate fr last) = playerFr player in FireRate fr (last + deltaTime),
       playerAnim = animateR deltaTime (playerAnim player)
     }}
 
 movePlayer :: [Char] -> Float -> Player -> Player
-movePlayer downKeys secs p@Player{playerSpeed = (s, Speed n t)} = changePosition p getMovement where
+movePlayer downKeys secs p@Player{playerSpeed} = changePosition p getMovement where
   getMovement :: (Float,Float)
-  getMovement = foldr (checkKey getSpeed) (0,0) downKeys
-  getSpeed :: Float
-  getSpeed | t > 0     = (s + n) * secs
-           | otherwise = s * secs
-movePlayer _ _ p = p
+  getMovement = foldr (checkKey (playerSpeed * secs)) (0,0) downKeys
 
 -- Adds to the x y movement based on the key that is being held down
 checkKey :: Float -> Char -> (Float, Float) -> (Float, Float)
@@ -98,12 +109,12 @@ checkPlayerCollision ds gstate = foldr check gstate ds where
 checkPowerUps :: GameState -> GameState
 checkPowerUps gstate@GameState{player, powerUps} = foldr checkPowerUp gstate powerUps where
   checkPowerUp :: PowerUp -> GameState -> GameState
-  checkPowerUp pu@PowerUp{puType} gstate@GameState{player = p@Player{playerHp}}
+  checkPowerUp pu@PowerUp{puType} gstate@GameState{player = p@Player{playerHp, playerSpeed, playerFr = FireRate fr last}, activePUs}
     | collide player pu = case puType of
       Health n -> destroy pu gstate{player = p{playerHp = (max 100 (fst playerHp + n), snd playerHp)}}
-      s@(Speed _ _) -> destroy pu gstate{player = p{playerSpeed = ((fst . playerSpeed) p, s)}}
-      fr@(FR _ _) -> destroy pu gstate{player = p{playerFr = ((fst . playerFr) p, fr)}}
-      i@(Invincibility _) -> destroy pu gstate{player = p{playerHp = (fst playerHp, i)}}
+      s@(Speed n _) -> destroy pu gstate{player = p{playerSpeed = playerSpeed + n}, activePUs = s : activePUs}
+      f@(FR n _) -> destroy pu gstate{player = p{playerFr = FireRate (fr - n) last}, activePUs = f : activePUs}
+      i@(Invincibility _) -> destroy pu gstate{player = p{playerHp = (fst playerHp, True)}, activePUs = i : activePUs}
     | otherwise = gstate
 
 -- | Update player bullets
@@ -170,7 +181,7 @@ updateBGList gstate@GameState{paused, gameOver, bgList} secs
   | paused = bgList
   | gameOver = bgList
   | otherwise = map f bgList where
-        f bg@Background {backgroundXPos, backgroundSpeed} = 
+        f bg@Background {backgroundXPos, backgroundSpeed} =
           if backgroundXPos > -1024 then bg {backgroundXPos = backgroundXPos + (backgroundSpeed * secs)} else bg {backgroundXPos = 1024}
 
 -- | Spawn objects based on the spawnList
@@ -223,11 +234,9 @@ inputKey _ gstate = gstate
 
 -- Fires a player bullet from the current position of the player
 firePlayerBullet :: Float -> Bool -> Player -> (Player, [PlayerBullet])
-firePlayerBullet secs False p@Player{playerPos, playerFr = (FireRate fireRate last, FR n t)}
-  | last + secs > fr = (p{playerFr = (FireRate fr 0, FR n t)}, [defaultPlayerBullet playerPos])
+firePlayerBullet secs False p@Player{playerPos, playerFr = FireRate fr last}
+  | last + secs > fr = (p{playerFr = FireRate fr 0}, [defaultPlayerBullet playerPos])
   | otherwise = (p, [])
-  where fr | t > 0 = fireRate - n
-           | otherwise = fireRate
 firePlayerBullet _ _ p = (p,[])
 
 -- | General helper functions that depend on certain type classes (can't define those in Helper.hs)
@@ -247,6 +256,6 @@ checkIncreaseScore False gstate                  = gstate
 -- Checks whether an object is within bounds
 withinBounds :: Positionable a => a -> Bool
 withinBounds a
-  | x > 550 || x < -550 = False
+  | x > 550 || x < -550 || y > 400 || y < -400 = False
   | otherwise = True
-  where (x,_) = getPosition a
+  where (x,y) = getPosition a

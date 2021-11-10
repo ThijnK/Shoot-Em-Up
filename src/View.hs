@@ -30,7 +30,7 @@ viewPure gstate@GameState{gameOver, player, turrets, drones, kamikazes, playerBu
                           )
 
 drawUI :: GameState -> [Picture]
-drawUI gstate@GameState{player, paused, gameOver, score = Score n _ _}
+drawUI gstate@GameState{player, activePUs, paused, gameOver, score = Score n _ _}
   | gameOver = (translate (-120) (-90) . color white . scale 0.15 0.15 . text) "Press [Enter] to restart" : (translate (-200) 0 . color white . scale 0.5 0.5 . text) "Game Over!" : ui
   | paused = (translate (-120) (-90) . color white . scale 0.15 0.15 . text) "Press [Esc] to resume"
            : (translate (-120) (-140) . color white . scale 0.15 0.15 . text) "Press [O] to save game"
@@ -40,7 +40,12 @@ drawUI gstate@GameState{player, paused, gameOver, score = Score n _ _}
   | otherwise = ui
   where ui = [(translate (-100) 280 . color white . scale 0.15 0.15 . text) ("Score: " ++ show n),
               (translate 30 280 . color white . scale 0.15 0.15 . text) ("Hp: " ++ show (max ((fst . playerHp) player) 0))
-             ]
+             ] ++ drawPUs activePUs
+
+drawPUs :: [PowerUpType] -> [Picture]
+drawPUs ps = snd (foldl (\(i, l) x -> (i + 1, drawPU x i : l)) (0, []) ps) where
+  drawPU :: PowerUpType -> Float -> Picture
+  drawPU pu i = (translate (-495) (280 - i * 30) . color white . scale 0.15 0.15 . text) (show pu)
 
 drawBG :: GameState -> [Picture]
 drawBG gstate@GameState {bgList, sprites} = map draw' bgList

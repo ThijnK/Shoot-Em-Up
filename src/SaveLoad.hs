@@ -118,6 +118,7 @@ instance FromJSON GameState where
       <*> v .: "downKeys"
       <*> v .: "saveLoad"
       <*> v .: "player"
+      <*> v .: "activePUs"
       <*> v .: "turrets"
       <*> v .: "drones"
       <*> v .: "kamikazes"

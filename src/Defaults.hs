@@ -18,12 +18,13 @@ initialState sprites spawnList generator = GameState {
   player        = Player {
     playerPos = (-100, 0),
     playerOrient = 0,
-    playerHp = (100, Invincibility 0),
-    playerSpeed = (250, Speed 0 0),
-    playerFr = (FireRate 0.10 0, FR 0 0),
+    playerHp = (100, False),
+    playerSpeed = 250,
+    playerFr = FireRate 0.10 0,
     playerHbox = (18, 8),
     playerAnim = Animation 0 8 0.2 0
   },
+  activePUs     = [],
   turrets       = [],
   drones        = [],
   kamikazes     = [],

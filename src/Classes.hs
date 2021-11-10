@@ -144,12 +144,11 @@ class (Positionable a, Collideable a, Eq a) => Destructible a where
   update :: Int -> a -> GameState -> GameState
 
 instance Destructible Player where
-  applyDamage player@Player {playerHp = (hp, Invincibility n)} damage
-    | n > 0 = (True, player) -- If invincibility is active, no damage is taken
-    | hp - damage <= 0 = (False, player{playerHp = (hp - damage, Invincibility n)})
-    | otherwise = (True, player{playerHp = (hp - damage, Invincibility n)})
-  applyDamage player _ = (True, player)
-  destroy p gstate = update 0 p{playerHp = (0, Invincibility 0)} gstate{gameOver = True}
+  applyDamage player@Player {playerHp = (hp, invincible)} damage
+    | invincible = (True, player) -- If invincibility is active, no damage is taken
+    | hp - damage <= 0 = (False, player{playerHp = (hp - damage, invincible)})
+    | otherwise = (True, player{playerHp = (hp - damage, invincible)})
+  destroy p gstate = update 0 p{playerHp = (0, False)} gstate{gameOver = True}
   update _ p gstate = gstate{player = p}
 
 instance Destructible Turret where
