@@ -140,59 +140,58 @@ instance Collideable PowerUp where
 -- | Destructible type class
 class (Positionable a, Collideable a, Eq a) => Destructible a where
   applyDamage :: a -> Int -> (Bool, a) -- For the Bool value: True means alive, False means dead
-  destroy :: a -> GameState -> GameState
-  update :: Int -> a -> GameState -> GameState
+  update :: [a] -> Destructibles -> Destructibles -- Updates list of this Destructible in the Destructbiles object
 
 instance Destructible Player where
   applyDamage player@Player {playerHp = (hp, invincible)} damage
     | invincible = (True, player) -- If invincibility is active, no damage is taken
     | hp - damage <= 0 = (False, player{playerHp = (hp - damage, invincible)})
     | otherwise = (True, player{playerHp = (hp - damage, invincible)})
-  destroy p gstate = update 0 p{playerHp = (0, False)} gstate{gameOver = True}
-  update _ p gstate = gstate{player = p}
+  update [p] (EnemyDS ms _) = EnemyDS ms p
+  update _ x = x
 
 instance Destructible Turret where
   applyDamage t@Turret{turretHp} damage
     | turretHp - damage <= 0 = (False, t)
     | otherwise = (True, t {turretHp = turretHp - damage})
-  destroy t gstate@GameState{turrets} = gstate{turrets = delete t turrets}
-  update i t gstate@GameState{turrets} = gstate{turrets = replace i t turrets}
+  update ts (PlayerDS ms _ ds ks) = PlayerDS ms ts ds ks
+  update _ x = x
 
 instance Destructible Drone where
   applyDamage d@Drone{droneHp} damage
     | droneHp - damage <= 0 = (False, d)
     | otherwise = (True, d {droneHp = droneHp - damage})
-  destroy d gstate@GameState{drones} = gstate{drones = delete d drones}
-  update i d gstate@GameState{drones} = gstate{drones = replace i d drones}
+  update ds (PlayerDS ms ts _ ks) = PlayerDS ms ts ds ks
+  update _ x = x
 
 instance Destructible Kamikaze where
   applyDamage k@Kamikaze{kamikazeHp} damage
     | kamikazeHp - damage <= 0 = (False, k)
     | otherwise = (True, k {kamikazeHp = kamikazeHp - damage})
-  destroy k gstate@GameState{kamikazes} = gstate{kamikazes = delete k kamikazes}
-  update i k gstate@GameState{kamikazes} = gstate{kamikazes = replace i k kamikazes}
+  update ks (PlayerDS ms ts ds _) = PlayerDS ms ts ds ks
+  update _ x = x
 
 instance Destructible Meteor where
   applyDamage obs@Meteor{meteorHp} damage
     | meteorHp - damage <= 0 = (False, obs)
     | otherwise = (True, obs {meteorHp = meteorHp - damage})
-  destroy o gstate@GameState{meteors} = gstate{meteors = delete o meteors}
-  update i o gstate@GameState{meteors} = gstate{meteors = replace i o meteors}
+  update ms (PlayerDS _ ts ds ks) = PlayerDS ms ts ds ks
+  update ms (EnemyDS _ p) = EnemyDS ms p
 
-instance Destructible PlayerBullet where
-  applyDamage = undefined -- not used
-  destroy pb gstate@GameState{playerBullets} = gstate{playerBullets = delete pb playerBullets}
-  update i pb gstate@GameState{playerBullets} = gstate{playerBullets = replace i pb playerBullets}
+-- instance Destructible PlayerBullet where
+--   applyDamage = undefined -- not used
+--   destroy pb gstate@GameState{playerBullets} = gstate{playerBullets = delete pb playerBullets}
+--   update i pb gstate@GameState{playerBullets} = gstate{playerBullets = replace i pb playerBullets}
 
-instance Destructible EnemyBullet where
-  applyDamage = undefined
-  destroy eb gstate@GameState{enemyBullets} = gstate{enemyBullets = delete eb enemyBullets}
-  update i eb gstate@GameState{enemyBullets} = gstate{enemyBullets = replace i eb enemyBullets}
+-- instance Destructible EnemyBullet where
+--   applyDamage = undefined
+--   destroy eb gstate@GameState{enemyBullets} = gstate{enemyBullets = delete eb enemyBullets}
+--   update i eb gstate@GameState{enemyBullets} = gstate{enemyBullets = replace i eb enemyBullets}
 
-instance Destructible PowerUp where
-  applyDamage = undefined
-  destroy pu gstate@GameState{powerUps} = gstate{powerUps = delete pu powerUps}
-  update i pu gstate@GameState{powerUps} = gstate{powerUps = replace i pu powerUps}
+-- instance Destructible PowerUp where
+--   applyDamage = undefined
+--   destroy pu gstate@GameState{powerUps} = gstate{powerUps = delete pu powerUps}
+--   update i pu gstate@GameState{powerUps} = gstate{powerUps = replace i pu powerUps}
 
 -- | Moveable type class
 class Positionable a => Moveable a where

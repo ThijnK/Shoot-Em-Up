@@ -107,7 +107,7 @@ data PlayerBullet = PlayerBullet {
   pbDmg    :: Int,
   pbSpeed  :: Float,
   pbHbox   :: Point
-} deriving (Eq, Generic)
+} deriving (Show, Eq, Generic)
 
 data EnemyBullet = EnemyBullet {
   ebPos    :: Point,
@@ -157,6 +157,10 @@ data SpawnListItem = SpawnListItem {
   eleType :: String
 } deriving (Show, Generic)
 
+
+data Destructibles = PlayerDS [Meteor] [Turret] [Drone] [Kamikaze] -- Objects that can be destroyed by the player bullets
+                   | EnemyDS [Meteor] Player -- Objects that can be destroyed by enemy bullets
+
 {-    __        __
      /\ \      /\ \       [ ]    _   _     _______
     /  \ \    /  \ \       _    | | / /   |
@@ -166,11 +170,11 @@ data SpawnListItem = SpawnListItem {
 / / /    \_\/_/    \_\_\  | |   | | \     |
 \/_/                \/_/  |_|   |_|  \_   |_______
 
-┌───────────┐
+┌────────────┐
 └────┐  ┌────┘
      │  │     
      │  │     
-     │  │     
-     └─ ┘ hijn
+     │  │ hijn    
+     └──┘ 
 
 -}

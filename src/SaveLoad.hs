@@ -84,7 +84,6 @@ loadSprites = do player1     <- loadBMP "assets/player-1.bmp"
 -- Because everything is generic, we can just let aeson handle the encoding
 instance ToJSON GameState
 
--- Help Aeson by instancing ToJSON for generics
 instance ToJSON Score
 instance ToJSON Player
 instance ToJSON Turret
