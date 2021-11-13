@@ -9,7 +9,7 @@ import System.Random ( StdGen )
 initialState :: Sprites -> SpawnList -> StdGen -> GameState
 initialState sprites spawnList generator = GameState {
   score         = Score 0 2 0, -- Increase score by 1 every 2 seconds
-  paused        = False,
+  paused        = True,
   gameOver      = False,
   deltaTime     = 0.0,
   timeElapsed   = 0.0,

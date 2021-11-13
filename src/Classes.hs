@@ -136,7 +136,7 @@ class (Positionable a, Collideable a, Eq a) => Destructible a where
 instance Destructible Player where
   applyDamage player@Player {playerHp = (hp, invincible)} damage
     | invincible = (True, player) -- If invincibility is active, no damage is taken
-    | hp - damage <= 0 = (False, player{playerHp = (hp - damage, invincible)})
+    | hp - damage <= 0 = (False, player{playerHp = (0, invincible)})
     | otherwise = (True, player{playerHp = (hp - damage, invincible)})
   update [p] (EnemyDS ms _) = EnemyDS ms p
   update [] (EnemyDS ms p) = EnemyDS ms p{playerHp = (0, False)}
@@ -211,11 +211,11 @@ class (Positionable a, Collideable a) => Shootable a where
     Just x -> case applyDamage x (getDmg b) of
       -- If the hit doesn't kill the object being hit, also return the index to update the object in its list
       (True, y)  -> (Damage i, Just y)
-      (False, y) -> (Kill, Just y)
+      (False, y) -> (Kill i, Just y)
       where (Just i) = elemIndex x xs
     Nothing -> (Miss, Nothing)
 
-data HitInfo = Miss | Damage Int | Kill
+data HitInfo = Miss | Damage Int | Kill Int
 
 -- Check collision of two collideables
 collide :: (Positionable a, Positionable b, Collideable a, Collideable b) => a -> b -> Bool

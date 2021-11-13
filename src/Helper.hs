@@ -11,6 +11,11 @@ replace :: Int -> a -> [a] -> [a]
 replace index x xs = zs ++ (x:ys)
   where (zs, _:ys) = splitAt index xs
 
+-- Delete element in a list at given index
+deleteAt :: Int -> [a] -> [a]
+deleteAt i xs = ys ++ zs
+  where (ys,_:zs) = splitAt i xs
+
 -- Clamps a given value to the given bounds (lowerBound, upperBound)
 clamp :: Float -> (Float, Float) -> Float
 clamp x (l,u) = max (min x u) l

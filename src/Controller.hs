@@ -59,11 +59,11 @@ updateState secs gstate@GameState{paused, deltaTime, gameOver, timeElapsed, scor
     (aps, p1)           = updateActivePUs activePUs player secs
     pds                 = PlayerDS meteors turrets drones kamikazes
 
--- | Handle game over
+-- | Clear all objects and spawn explosions
 order66 :: GameState -> GameState
-order66 gstate@GameState{player, meteors, turrets, drones, explosions}
-  = gstate{player = player{playerHp = (0,False)}, meteors = [], turrets = [], drones = [], playerBullets = [], enemyBullets = [], powerUps = [], explosions = es ++ explosions}
-  where es = map defaultExplosion (map getPosition meteors ++ map getPosition turrets ++ map getPosition drones)
+order66 gstate@GameState{player, meteors, turrets, drones, kamikazes, explosions}
+  = gstate{player = player{playerHp = (0,False)}, meteors = [], turrets = [], drones = [], kamikazes = [], playerBullets = [], enemyBullets = [], powerUps = [], explosions = es ++ explosions}
+  where es = map defaultExplosion (map getPosition meteors ++ map getPosition turrets ++ map getPosition drones ++ map getPosition kamikazes)
 
 -- | Check if the it's a game over (player hp is <= 0)
 checkGameOver :: Int -> Bool
@@ -162,7 +162,7 @@ updateEnemyBullets ebs ds = foldr shootEnemyBullet ([], ds, []) ebs where
 shootBullet :: (Shootable a, Destructible b) => [b] -> (Maybe a, Destructibles, [Explosion]) -> (Maybe a, Destructibles, [Explosion])
 shootBullet xs (Just b, ds, es) = case shoot b xs of
   (Damage i, Just d) -> (Nothing, update (replace i d xs) ds, es)
-  (Kill, Just d)     -> (Nothing, update (delete d xs) ds, defaultExplosion (getPosition d) : es)
+  (Kill i, Just d)     -> (Nothing, update (deleteAt i xs) ds, defaultExplosion (getPosition d) : es)
   (_, _)             -> (Just b, ds, es)
 shootBullet _ x@(Nothing, _, _) = x -- Return everything unchanged if the bullet already hit something
 

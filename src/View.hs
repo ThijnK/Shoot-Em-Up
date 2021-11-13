@@ -14,9 +14,9 @@ view :: GameState -> IO Picture
 view = return . viewPure
 
 viewPure :: GameState -> Picture
-viewPure gstate@GameState{score, paused, gameOver, player, activePUs, turrets, drones, kamikazes, playerBullets, enemyBullets, meteors, explosions, sprites, powerUps, bgList}
+viewPure gstate@GameState{score, paused, gameOver, timeElapsed, player, activePUs, turrets, drones, kamikazes, playerBullets, enemyBullets, meteors, explosions, sprites, powerUps, bgList}
   | gameOver = objects -- Don't draw player when game is over
-  | otherwise = pictures [objects, toPicture sprites player]
+  | otherwise = pictures [toPicture sprites player, objects]
   where objects = pictures (drawBG bgList sprites
                             ++ map (toPicture sprites) playerBullets
                             ++ map (toPicture sprites) enemyBullets
@@ -26,22 +26,31 @@ viewPure gstate@GameState{score, paused, gameOver, player, activePUs, turrets, d
                             ++ map (toPicture sprites) meteors
                             ++ map (toPicture sprites) explosions
                             ++ map (toPicture sprites) powerUps
-                            ++ drawUI paused gameOver score (fst (playerHp player)) activePUs sprites
+                            ++ map drawHbox powerUps
+                            ++ drawUI paused gameOver timeElapsed score (fst (playerHp player)) activePUs sprites
                           )
 
 -- Draw UI elements like the current score and instructions/explanations
-drawUI :: Bool -> Bool -> Score -> Int -> [PowerUpType] -> Sprites -> [Picture]
-drawUI paused gameOver (Score score _ _) playerHp activePUs sprites
+drawUI :: Bool -> Bool -> Float -> Score -> Int -> [PowerUpType] -> Sprites -> [Picture]
+drawUI paused gameOver timeElapsed (Score score _ _) playerHp activePUs sprites
   | gameOver = (translate (-120) (-90) . color white . scale 0.15 0.15 . text) "Press [Enter] to restart" : (translate (-200) 0 . color white . scale 0.5 0.5 . text) "Game Over!" : ui
-  | paused = (translate (-120) (-90) . color white . scale 0.15 0.15 . text) "Press [Esc] to resume"
-           : (translate (-120) (-140) . color white . scale 0.15 0.15 . text) "Press [O] to save game"
-           : (translate (-120) (-175) . color white . scale 0.15 0.15 . text) "Press [P] to load game"
-           : (translate (-125) 0 . color white . scale 0.5 0.5 . text) "Paused"
-           : ui ++ drawPuInfo sprites
+  | paused = getPausedText timeElapsed ++ ui ++ drawPuInfo sprites
   | otherwise = ui
-  where ui = [(translate (-100) 280 . color white . scale 0.15 0.15 . text) ("Score: " ++ show score),
-              (translate 30 280 . color white . scale 0.15 0.15 . text) ("Hp: " ++ show (max playerHp 0))
-             ] ++ drawPUs activePUs
+  where
+    ui = [(translate (-100) 280 . color white . scale 0.15 0.15 . text) ("Score: " ++ show score),
+          (translate 30 280 . color white . scale 0.15 0.15 . text) ("Hp: " ++ show (max playerHp 0))
+         ] ++ drawPUs activePUs
+
+-- Get the text to display when game is paused (differs depending on if game has been started yet)
+getPausedText :: Float -> [Picture]
+getPausedText timeElapsed
+  | timeElapsed == 0 = [(translate (-100) (-90) . color white . scale 0.15 0.15 . text) "Press [Esc] to start",
+                        (translate (-200) 150 . color white . scale 0.5 0.5 . text) "Shoot-em-up",
+                        (translate (-125) 100 . color white . scale 0.15 0.15 . text) "Thijn Kroon & Mike Wu"]
+  | otherwise = [(translate (-120) (-90) . color white . scale 0.15 0.15 . text) "Press [Esc] to resume",
+                 (translate (-120) (-140) . color white . scale 0.15 0.15 . text) "Press [O] to save game",
+                 (translate (-120) (-175) . color white . scale 0.15 0.15 . text) "Press [P] to load game",
+                 (translate (-125) 0 . color white . scale 0.5 0.5 . text) "Paused"]
 
 -- Draw the active power ups
 drawPUs :: [PowerUpType] -> [Picture]
