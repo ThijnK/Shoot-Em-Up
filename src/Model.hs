@@ -17,7 +17,7 @@ data GameState = GameState {
   downKeys      :: [Char],
   saveLoad      :: (Bool, Bool), -- (wantsToSave, wantsToLoad)
   player        :: Player,
-  activePUs     :: [PowerUpType],
+  activePUs     :: [PowerUpType], -- Currently active power ups
   turrets       :: [Turret],
   drones        :: [Drone],
   kamikazes     :: [Kamikaze],
@@ -26,10 +26,10 @@ data GameState = GameState {
   meteors       :: [Meteor],
   explosions    :: [Explosion],
   powerUps      :: [PowerUp],
-  sprites       :: Sprites,
+  sprites       :: Sprites, -- Contains all used sprites
   spawnList     :: (SpawnList, SpawnList), -- Also stores a copy of the original spawnList
-  bgList        :: [Background],
-  generator     :: StdGen 
+  bgList        :: [Background], -- List of background images
+  generator     :: StdGen -- Random generator
 } deriving Generic
 
 data Score = Score Int Float Float -- currentScore scoreIncrease(1 / scorePerSecond) secondsSinceLastIncrease
@@ -70,6 +70,14 @@ data Player = Player {
   playerFr     :: FireRate,
   playerHbox   :: Point,
   playerAnim   :: Animation
+} deriving (Eq, Generic)
+
+data Meteor = Meteor {
+  meteorPos    :: Point,
+  meteorOrient :: Float,
+  meteorSpeed  :: Float,
+  meteorHp     :: Int,
+  meteorHbox   :: Point
 } deriving (Eq, Generic)
 
 data Turret = Turret {
@@ -117,13 +125,8 @@ data EnemyBullet = EnemyBullet {
   ebHbox   :: Point 
 } deriving (Eq, Generic)
 
-data Meteor = Meteor {
-  meteorPos    :: Point,
-  meteorOrient :: Float,
-  meteorSpeed  :: Float,
-  meteorHp     :: Int,
-  meteorHbox   :: Point
-} deriving (Eq, Generic)
+data Destructibles = PlayerDS [Meteor] [Turret] [Drone] [Kamikaze] -- Objects that can be destroyed by player bullets
+                   | EnemyDS [Meteor] Player -- Objects that can be destroyed by enemy bullets
 
 data Background = Background {
   backgroundXPos     :: Float,
@@ -158,8 +161,6 @@ data SpawnListItem = SpawnListItem {
 } deriving (Show, Generic)
 
 
-data Destructibles = PlayerDS [Meteor] [Turret] [Drone] [Kamikaze] -- Objects that can be destroyed by the player bullets
-                   | EnemyDS [Meteor] Player -- Objects that can be destroyed by enemy bullets
 
 {-    __        __
      /\ \      /\ \       [ ]    _   _     _______

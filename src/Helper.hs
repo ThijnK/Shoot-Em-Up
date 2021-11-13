@@ -3,7 +3,8 @@ module Helper where
 
 import Model ( Animation(..), FireRate(..) )
 
-import Graphics.Gloss(Point)
+import Graphics.Gloss(Point, Picture, translate, rotate)
+import Graphics.Gloss.Geometry.Angle ( radToDeg )
 
 -- Replace the element at the given index of the list with the given value
 replace :: Int -> a -> [a] -> [a]
@@ -43,3 +44,6 @@ clampOrientation angle
   | angle > -0.75 * pi && angle < 0 = -0.75 * pi
   | angle < 0.75 * pi && angle > 0  = 0.75 * pi
   | otherwise                       = angle
+
+draw :: Float -> Point -> Picture -> Picture
+draw orientation (x,y) = translate x y . rotate (radToDeg (-orientation))

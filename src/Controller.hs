@@ -23,8 +23,8 @@ step secs gstate@GameState{score, paused, gameOver, timeElapsed, player, meteors
   | otherwise   = return (newState gstate)
   where
     newState :: GameState -> GameState
-    newState oldState@GameState{gameOver, paused}
-      | gameOver  = order66 (updateState secs oldState)
+    newState oldState@GameState{gameOver, paused, explosions}
+      | gameOver  = order66 oldState{explosions = updateExplosions secs explosions}
       | paused    = oldState -- No change to gamestate if game is paused
       | otherwise = updateState secs oldState
 
@@ -49,19 +49,27 @@ updateState secs gstate@GameState{paused, deltaTime, gameOver, timeElapsed, scor
     powerUps = filter withinBounds (map (move secs) ps)
   }
   where
+    go                                               = checkGameOver ((fst . playerHp) updatedPlayer)
     newEbs                                           = fst (foldr (turretFire secs (playerPos updatedPlayer)) ([], generator) updatedTurrets) ++ foldr (droneFire secs) [] updatedDrones
     (ebs, EnemyDS updatedMeteors updatedPlayer, es3) = updateEnemyBullets enemyBullets eds
     eds                                              = EnemyDS ms p3
     (pbs, PlayerDS ms updatedTurrets updatedDrones updatedKamikazes, es2, scoreIncr) = updatePlayerBullets playerBullets pds'
-    (p3, pds', es1, go) = checkPlayerCollisions p2 pds
+    (p3, pds', es1) = checkPlayerCollisions p2 pds
     (p2, ps, aps')      = checkPowerUps p1 powerUps
     (aps, p1)           = updateActivePUs activePUs player secs
     pds                 = PlayerDS meteors turrets drones kamikazes
 
 -- | Handle game over
 order66 :: GameState -> GameState
-order66 gstate@GameState{meteors, turrets, drones, explosions} = gstate{meteors = [], turrets = [], drones = [], explosions = es ++ explosions}
+order66 gstate@GameState{player, meteors, turrets, drones, explosions}
+  = gstate{player = player{playerHp = (0,False)}, meteors = [], turrets = [], drones = [], playerBullets = [], enemyBullets = [], powerUps = [], explosions = es ++ explosions}
   where es = map defaultExplosion (map getPosition meteors ++ map getPosition turrets ++ map getPosition drones)
+
+-- | Check if the it's a game over (player hp is <= 0)
+checkGameOver :: Int -> Bool
+checkGameOver playerHp
+  | playerHp <= 0 = True
+  | otherwise     = False
 
 -- | Update score
 updateScore :: Bool -> Float -> Int -> Score -> Score
@@ -93,7 +101,11 @@ updatePlayer :: [Char] -> Float -> Player -> Player
 updatePlayer downKeys secs p@Player{playerSpeed, playerAnim, playerFr = FireRate fr last} 
   = changePosition p{playerAnim = animateR secs playerAnim, playerFr = FireRate fr (last + secs)} getMovement where
   getMovement :: (Float,Float)
-  getMovement = foldr (checkKey (playerSpeed * secs)) (0,0) downKeys
+  -- If the player presses two keys at the same time (move diagonally) we need to make sure the player doesn't move twice as fast
+  getMovement
+    | x > playerSpeed * secs && y > playerSpeed * secs = (x / 2, y / 2)
+    | otherwise = (x,y)
+    where (x,y) = foldr (checkKey (playerSpeed * secs)) (0,0) downKeys
 
 -- Adds to the x y movement based on the key that is being held down
 checkKey :: Float -> Char -> (Float, Float) -> (Float, Float)
@@ -104,17 +116,15 @@ checkKey n 'd' (x,y) = (x + n, y)
 checkKey _ _   acc   = acc
 
 -- | Check player collisions with enemies
-checkPlayerCollisions :: Player -> Destructibles -> (Player, Destructibles, [Explosion], Bool)
-checkPlayerCollisions player ds@(PlayerDS ms ts drs ks) = (checkObjects ms . checkObjects ts . checkObjects drs . checkObjects ks) (player, ds, [], False) where
-  checkObjects :: Destructible a => [a] -> (Player, Destructibles, [Explosion], Bool) -> (Player, Destructibles, [Explosion], Bool)
-  checkObjects xs (p, ds, es, b) = let (p', xs', es', b') = foldr checkObject (p,[],es,b) xs in (p', update xs' ds, es', b')
-  checkObject :: Destructible a => a -> (Player, [a], [Explosion], Bool) -> (Player, [a], [Explosion], Bool)
-  checkObject d (player, ds, es, b)
-    | collide player d = case applyDamage player 45 of -- Colliding with any object or enemy does 45 damage (except power ups)
-        (False, p) -> (p, ds, defaultExplosion (getPosition d) : es, True)
-        (True, p)  -> (p, ds, defaultExplosion (getPosition d) : es, b)
-    | otherwise = (player, d : ds, es, b)
-checkPlayerCollisions p ds = (p, ds, [], False)
+checkPlayerCollisions :: Player -> Destructibles -> (Player, Destructibles, [Explosion])
+checkPlayerCollisions player ds@(PlayerDS ms ts drs ks) = (checkObjects ms . checkObjects ts . checkObjects drs . checkObjects ks) (player, ds, []) where
+  checkObjects :: Destructible a => [a] -> (Player, Destructibles, [Explosion]) -> (Player, Destructibles, [Explosion])
+  checkObjects xs (p, ds, es) = let (p', xs', es') = foldr checkObject (p,[],es) xs in (p', update xs' ds, es')
+  checkObject :: Destructible a => a -> (Player, [a], [Explosion]) -> (Player, [a], [Explosion])
+  checkObject d (player, ds, es)
+    | collide player d = (snd (applyDamage player 45), ds, defaultExplosion (getPosition d) : es) -- Colliding with any object or enemy does 45 damage (except power ups)
+    | otherwise = (player, d : ds, es)
+checkPlayerCollisions p ds = (p, ds, [])
 
 -- | Check player collisions with power ups
 checkPowerUps :: Player -> [PowerUp] -> (Player, [PowerUp], [PowerUpType])
@@ -147,6 +157,14 @@ updateEnemyBullets ebs ds = foldr shootEnemyBullet ([], ds, []) ebs where
     (Nothing, ds', es') -> (ebs, ds', es')
     (Just eb, ds', es') -> (eb : ebs, ds', es')
   shootEnemyBullet _ x = x
+
+-- Checks collision for a given bullet and a list of obstacles it can hit
+shootBullet :: (Shootable a, Destructible b) => [b] -> (Maybe a, Destructibles, [Explosion]) -> (Maybe a, Destructibles, [Explosion])
+shootBullet xs (Just b, ds, es) = case shoot b xs of
+  (Damage i, Just d) -> (Nothing, update (replace i d xs) ds, es)
+  (Kill, Just d)     -> (Nothing, update (delete d xs) ds, defaultExplosion (getPosition d) : es)
+  (_, _)             -> (Just b, ds, es)
+shootBullet _ x@(Nothing, _, _) = x -- Return everything unchanged if the bullet already hit something
 
 -- | Update explosions
 updateExplosions :: Float -> [Explosion] -> [Explosion]
@@ -253,16 +271,6 @@ firePlayerBullet secs False p@Player{playerPos, playerFr = FireRate fr last}
   | last + secs > fr = (p{playerFr = FireRate fr 0}, [defaultPlayerBullet playerPos])
   | otherwise = (p, [])
 firePlayerBullet _ _ p = (p,[])
-
--- | General helper functions that depend on certain type classes (can't define those in Helper.hs)
-
--- Checks collision for a given bullet and a list of obstacles it can hit
-shootBullet :: (Shootable a, Destructible b) => [b] -> (Maybe a, Destructibles, [Explosion]) -> (Maybe a, Destructibles, [Explosion])
-shootBullet xs (Just b, ds, es) = case shoot b xs of
-  (Damage i, Just d) -> (Nothing, update (replace i d xs) ds, es)
-  (Kill, Just d)     -> (Nothing, update (delete d xs) ds, defaultExplosion (getPosition d) : es)
-  (_, _)             -> (Just b, ds, es)
-shootBullet _ x@(Nothing, _, _) = x -- Return everything unchanged if the bullet already hit something
 
 -- Checks whether an object is within bounds
 withinBounds :: Positionable a => a -> Bool

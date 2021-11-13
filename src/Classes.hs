@@ -4,7 +4,7 @@
 module Classes where
 
 import Model
-import Helper ( replace, clamp )
+import Helper ( replace, clamp, draw, animateR )
 
 import Graphics.Gloss ( Point, red, color, line, rotate, translate, Picture, scale )
 import Graphics.Gloss.Geometry.Angle (radToDeg)
@@ -16,7 +16,6 @@ class Positionable a where
   getPosition :: a -> Point
   getOrientation :: a -> Float
   changePosition :: a -> Point -> a
-  -- changeOrientation :: a -> Float -> a
 
 instance Positionable Player where
   getPosition = playerPos
@@ -101,14 +100,6 @@ instance Drawable PowerUp where
   getSprite Sprites{frPowerUp} PowerUp{puType = FR _ _} = frPowerUp
   getSprite Sprites{invincPowerUp} PowerUp{puType = Invincibility _} = invincPowerUp
 
-draw :: Float -> Point -> Picture -> Picture
-draw orientation (x,y) = translate x y . rotate (radToDeg (-orientation))
-
-drawHbox :: (Positionable a, Collideable a) => a -> Picture
-drawHbox a = color red (line [(x-w,y-h),(x+w,y-h),(x+w,y+h),(x-w,y+h),(x-w,y-h)]) where
-    (x,y) = getPosition a
-    (w,h) = getHitbox a
-
 -- | Collideable type class
 class Collideable a where
   getHitbox :: a -> Point
@@ -148,6 +139,7 @@ instance Destructible Player where
     | hp - damage <= 0 = (False, player{playerHp = (hp - damage, invincible)})
     | otherwise = (True, player{playerHp = (hp - damage, invincible)})
   update [p] (EnemyDS ms _) = EnemyDS ms p
+  update [] (EnemyDS ms p) = EnemyDS ms p{playerHp = (0, False)}
   update _ x = x
 
 instance Destructible Turret where
@@ -177,21 +169,6 @@ instance Destructible Meteor where
     | otherwise = (True, obs {meteorHp = meteorHp - damage})
   update ms (PlayerDS _ ts ds ks) = PlayerDS ms ts ds ks
   update ms (EnemyDS _ p) = EnemyDS ms p
-
--- instance Destructible PlayerBullet where
---   applyDamage = undefined -- not used
---   destroy pb gstate@GameState{playerBullets} = gstate{playerBullets = delete pb playerBullets}
---   update i pb gstate@GameState{playerBullets} = gstate{playerBullets = replace i pb playerBullets}
-
--- instance Destructible EnemyBullet where
---   applyDamage = undefined
---   destroy eb gstate@GameState{enemyBullets} = gstate{enemyBullets = delete eb enemyBullets}
---   update i eb gstate@GameState{enemyBullets} = gstate{enemyBullets = replace i eb enemyBullets}
-
--- instance Destructible PowerUp where
---   applyDamage = undefined
---   destroy pu gstate@GameState{powerUps} = gstate{powerUps = delete pu powerUps}
---   update i pu gstate@GameState{powerUps} = gstate{powerUps = replace i pu powerUps}
 
 -- | Moveable type class
 class Positionable a => Moveable a where
@@ -229,10 +206,10 @@ instance Moveable PowerUp where
 -- | Shootable type class
 class (Positionable a, Collideable a) => Shootable a where
   getDmg :: a -> Int
-  shotByPlayer :: a -> Bool -- Whether or not this shootable thing was shot by the player (mainly for future proofing)
   shoot :: Destructible b => a -> [b] -> (HitInfo, Maybe b)
   shoot b xs = case find (collide b) xs of
     Just x -> case applyDamage x (getDmg b) of
+      -- If the hit doesn't kill the object being hit, also return the index to update the object in its list
       (True, y)  -> (Damage i, Just y)
       (False, y) -> (Kill, Just y)
       where (Just i) = elemIndex x xs
@@ -254,8 +231,6 @@ collide a b = not (segClearsBox (xa - wa, ya - ha) (xa + wa, ya + ha) ll ur)
 
 instance Shootable PlayerBullet where
   getDmg PlayerBullet{pbDmg} = pbDmg
-  shotByPlayer _ = True 
 
 instance Shootable EnemyBullet where
   getDmg EnemyBullet{ebDmg} = ebDmg
-  shotByPlayer _ = False 
