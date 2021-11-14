@@ -13,8 +13,7 @@ executable shoot-em-up
                        gloss,
                        random,
                        aeson,
-                       bytestring,
-                       mtl
+                       bytestring
   hs-source-dirs:      src
   other-modules:       Controller
                      , Model
