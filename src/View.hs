@@ -26,14 +26,16 @@ viewPure gstate@GameState{score, paused, gameOver, timeElapsed, player, activePU
                             ++ map (toPicture sprites) meteors
                             ++ map (toPicture sprites) explosions
                             ++ map (toPicture sprites) powerUps
-                            ++ map drawHbox powerUps
                             ++ drawUI paused gameOver timeElapsed score (fst (playerHp player)) activePUs sprites
                           )
 
 -- Draw UI elements like the current score and instructions/explanations
 drawUI :: Bool -> Bool -> Float -> Score -> Int -> [PowerUpType] -> Sprites -> [Picture]
 drawUI paused gameOver timeElapsed (Score score _ _) playerHp activePUs sprites
-  | gameOver = (translate (-120) (-90) . color white . scale 0.15 0.15 . text) "Press [Enter] to restart" : (translate (-200) 0 . color white . scale 0.5 0.5 . text) "Game Over!" : ui
+  | gameOver = (translate (-120) (-90) . color white . scale 0.15 0.15 . text) "Press [Enter] to restart" 
+               : (translate (-200) 0 . color white . scale 0.5 0.5 . text) "Game Over!" 
+               : loadGameText
+               : ui
   | paused = getPausedText timeElapsed ++ ui ++ drawPuInfo sprites
   | otherwise = ui
   where
@@ -49,8 +51,11 @@ getPausedText timeElapsed
                         (translate (-125) 100 . color white . scale 0.15 0.15 . text) "Thijn Kroon & Mike Wu"]
   | otherwise = [(translate (-120) (-90) . color white . scale 0.15 0.15 . text) "Press [Esc] to resume",
                  (translate (-120) (-140) . color white . scale 0.15 0.15 . text) "Press [O] to save game",
-                 (translate (-120) (-175) . color white . scale 0.15 0.15 . text) "Press [P] to load game",
+                 loadGameText,
                  (translate (-125) 0 . color white . scale 0.5 0.5 . text) "Paused"]
+
+loadGameText :: Picture
+loadGameText = (translate (-120) (-175) . color white . scale 0.15 0.15 . text) "Press [P] to load game"
 
 -- Draw the active power ups
 drawPUs :: [PowerUpType] -> [Picture]

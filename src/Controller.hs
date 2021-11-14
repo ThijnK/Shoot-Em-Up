@@ -249,10 +249,11 @@ input e gstate = return (inputKey e gstate)
 
 inputKey :: Event -> GameState -> GameState
 inputKey (EventKey (SpecialKey KeyEsc) Up _ _) gstate@GameState{paused} = gstate{paused = not paused}
-inputKey (EventKey (Char c) Up _ _) gstate@GameState{paused, downKeys}
+inputKey (EventKey (Char c) Up _ _) gstate@GameState{paused, gameOver, downKeys}
   | c == 'w' || c == 'a' || c == 's' || c == 'd' = gstate { downKeys = delete c downKeys}
+  -- Make sure you can only save and load when the game is paused (or game over in the case of loading)
   | paused && c == 'o' = gstate{saveLoad = (True, False)}
-  | paused && c == 'p' = gstate{saveLoad = (False, True)}
+  | (paused && c == 'p') || (gameOver && c == 'p') = gstate{saveLoad = (False, True)}
   | otherwise = gstate
 inputKey (EventKey (Char c) Down _ _) gstate@GameState{paused, downKeys}
   | c == 'w' || c == 'a' || c == 's' || c == 'd' = gstate { downKeys = c : downKeys }
