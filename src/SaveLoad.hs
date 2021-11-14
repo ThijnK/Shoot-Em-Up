@@ -40,7 +40,9 @@ loadSpawnList = do spawnList <- BS.readFile "game/spawnlist.json"
 
 -- Load sprites from .bmp files
 loadSprites :: IO Sprites
-loadSprites = do player1 <- loadBMP "assets/player-1.bmp" -- Player, turret, drone, kamikaze, bullet, explosion bought from https://www.gamedevmarket.net/asset/pixel-sidescroller-spaceships/
+-- Player, turret, drone, kamikaze, bullet, explosion bought from https://www.gamedevmarket.net/asset/pixel-sidescroller-spaceships/
+-- Under the following license: https://www.gamedevmarket.net/terms-conditions/#pro-licence
+loadSprites = do player1 <- loadBMP "assets/player-1.bmp"
                  player2     <- loadBMP "assets/player-2.bmp"
                  player3     <- loadBMP "assets/player-3.bmp"
                  player4     <- loadBMP "assets/player-4.bmp"
@@ -69,6 +71,7 @@ loadSprites = do player1 <- loadBMP "assets/player-1.bmp" -- Player, turret, dro
                  explosion11 <- loadBMP "assets/explosion-11.bmp"
                  bgSprite    <- loadBMP "assets/background.bmp"
                  bgSprite2   <- loadBMP "assets/background2.bmp"
+                 -- Power up sprites are from https://opengameart.org/content/gem-icons
                  powerup1    <- loadBMP "assets/red-gem.bmp"
                  powerup2    <- loadBMP "assets/green-gem.bmp"
                  powerup3    <- loadBMP "assets/blue-gem.bmp"
