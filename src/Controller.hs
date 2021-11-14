@@ -14,6 +14,7 @@ import Graphics.Gloss.Interface.IO.Game
 import System.Random ( Random(randomR), StdGen )
 import Data.List ( delete )
 import Data.Maybe ( mapMaybe )
+import Graphics.Gloss.Data.Vector
 
 step :: Float -> GameState -> IO GameState
 step secs gstate@GameState{score, paused, gameOver, timeElapsed, player, meteors, downKeys, saveLoad = (wantsToSave, wantsToLoad), explosions}
@@ -43,8 +44,8 @@ updateState secs gstate@GameState{paused, deltaTime, gameOver, timeElapsed, scor
     turrets = (filter withinBounds . map (updateTurret secs)) updatedTurrets,
     drones = (filter withinBounds . map (updateDrone secs)) updatedDrones,
     kamikazes = (filter withinBounds . map (updateKamikaze secs (playerPos updatedPlayer))) updatedKamikazes,
-    explosions = updateExplosions secs (explosions ++ es1 ++ es2 ++ es3),
-    meteors = map (move secs) updatedMeteors,
+    explosions = map (move secs) (updateExplosions secs (explosions ++ es1 ++ es2 ++ es3)),
+    meteors = (filter withinBounds . map (move secs) )updatedMeteors,
     bgList = updateBGList bgList paused go secs,
     powerUps = filter withinBounds (map (move secs) ps)
   }
@@ -101,11 +102,11 @@ updatePlayer :: [Char] -> Float -> Player -> Player
 updatePlayer downKeys secs p@Player{playerSpeed, playerAnim, playerFr = FireRate fr last} 
   = changePosition p{playerAnim = animateR secs playerAnim, playerFr = FireRate fr (last + secs)} getMovement where
   getMovement :: (Float,Float)
-  -- If the player presses two keys at the same time (move diagonally) we need to make sure the player doesn't move twice as fast
+  -- If the player presses two keys at the same time (move diagonally) we need to make sure it doesn't move faster than intended
   getMovement
-    | x > playerSpeed * secs && y > playerSpeed * secs = (x / 2, y / 2)
-    | otherwise = (x,y)
-    where (x,y) = foldr (checkKey (playerSpeed * secs)) (0,0) downKeys
+    | x > 0 && y > 0 = mulSV (playerSpeed * secs) (normalizeV v) -- Normalize movement and then multiply by the actual distance that it should move
+    | otherwise = v
+    where v@(x,y) = foldr (checkKey (playerSpeed * secs)) (0,0) downKeys
 
 -- Adds to the x y movement based on the key that is being held down
 checkKey :: Float -> Char -> (Float, Float) -> (Float, Float)
@@ -115,24 +116,30 @@ checkKey n 'w' (x,y) = (x, y + n)
 checkKey n 'd' (x,y) = (x + n, y)
 checkKey _ _   acc   = acc
 
--- | Check player collisions with enemies
+-- | Deal with collisions of the player
+
+-- Deal this amount of damage to the player when they collide with something
+playerCollisionDmg :: Int 
+playerCollisionDmg = 40
+
+-- Check collisions with enemies
 checkPlayerCollisions :: Player -> Destructibles -> (Player, Destructibles, [Explosion])
 checkPlayerCollisions player ds@(PlayerDS ms ts drs ks) = (checkObjects ms . checkObjects ts . checkObjects drs . checkObjects ks) (player, ds, []) where
   checkObjects :: Destructible a => [a] -> (Player, Destructibles, [Explosion]) -> (Player, Destructibles, [Explosion])
   checkObjects xs (p, ds, es) = let (p', xs', es') = foldr checkObject (p,[],es) xs in (p', update xs' ds, es')
   checkObject :: Destructible a => a -> (Player, [a], [Explosion]) -> (Player, [a], [Explosion])
   checkObject d (player, ds, es)
-    | collide player d = (snd (applyDamage player 45), ds, defaultExplosion (getPosition d) : es) -- Colliding with any object or enemy does 45 damage (except power ups)
+    | collide player d = (snd (applyDamage player playerCollisionDmg), ds, defaultExplosion (getPosition d) : es)
     | otherwise = (player, d : ds, es)
 checkPlayerCollisions p ds = (p, ds, [])
 
--- | Check player collisions with power ups
+-- Check player collisions with power ups
 checkPowerUps :: Player -> [PowerUp] -> (Player, [PowerUp], [PowerUpType])
 checkPowerUps player = foldr checkPowerUp (player, [], []) where
   checkPowerUp :: PowerUp -> (Player, [PowerUp], [PowerUpType]) -> (Player, [PowerUp], [PowerUpType])
   checkPowerUp pu@PowerUp{puType} (p@Player{playerHp, playerSpeed, playerFr = FireRate fr last}, ps, activePUs)
     | collide player pu = case puType of
-      Health n -> (p{playerHp = (max 100 (fst playerHp + n), snd playerHp)}, ps, activePUs)
+      Health n -> (p{playerHp = (fst playerHp + n, snd playerHp)}, ps, activePUs)
       s@(Speed n _) -> (p{playerSpeed = playerSpeed + n}, ps, s : activePUs)
       f@(FR n _) -> (p{playerFr = FireRate (fr - n) last}, ps, f : activePUs)
       i@(Invincibility _) -> (p{playerHp = (fst playerHp, True)}, ps, i : activePUs)
@@ -236,7 +243,7 @@ spawnObjects gstate@GameState{timeElapsed, spawnList, meteors, turrets, drones, 
     spawnObject _        = gstate{spawnList = (newList, snd spawnList), generator = newGen}
     (randYPos, newGen) = randomR (-250, 250) generator :: (Float, StdGen)
     (randXPos, newGen') = randomR (0, 450) newGen :: (Float, StdGen)
-    (randSpeed, newGen'') = randomR (-250, -150) newGen :: (Float, StdGen)
+    (randSpeed, newGen'') = randomR (-200, -70) newGen :: (Float, StdGen)
 
 -- Returns enemy info if at least one enemy has yet to be spawned
 spawnInfo :: SpawnList -> (Float, String, SpawnList)

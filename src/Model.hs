@@ -59,7 +59,8 @@ data Sprites  = Sprites {
 data Explosion = Explosion {
   explosionPos    :: Point,
   explosionOrient :: Float,
-  explosionAnim   :: Animation
+  explosionAnim   :: Animation,
+  explosionSpeed  :: Float
 } deriving Generic
 
 data Player = Player {

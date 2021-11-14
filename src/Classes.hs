@@ -6,7 +6,7 @@ module Classes where
 import Model
 import Helper ( replace, clamp, draw, animateR )
 
-import Graphics.Gloss ( Point, red, color, line, rotate, translate, Picture, scale )
+import Graphics.Gloss ( Point, red, color, line, rotate, translate, Picture, scale, Vector )
 import Graphics.Gloss.Geometry.Angle (radToDeg)
 import Graphics.Gloss.Geometry.Line (segClearsBox)
 import Data.List ( delete, find, elemIndex )
@@ -15,7 +15,7 @@ import Data.List ( delete, find, elemIndex )
 class Positionable a where
   getPosition :: a -> Point
   getOrientation :: a -> Float
-  changePosition :: a -> Point -> a
+  changePosition :: a -> Vector -> a
 
 instance Positionable Player where
   getPosition = playerPos
@@ -202,6 +202,9 @@ instance Moveable EnemyBullet where
 
 instance Moveable PowerUp where
   getSpeed = puSpeed
+
+instance Moveable Explosion where
+  getSpeed = explosionSpeed
 
 -- | Shootable type class
 class (Positionable a, Collideable a) => Shootable a where

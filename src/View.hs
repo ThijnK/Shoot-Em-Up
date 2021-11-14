@@ -40,7 +40,8 @@ drawUI paused gameOver timeElapsed (Score score _ _) playerHp activePUs sprites
   | otherwise = ui
   where
     ui = [(translate (-100) 280 . color white . scale 0.15 0.15 . text) ("Score: " ++ show score),
-          (translate 30 280 . color white . scale 0.15 0.15 . text) ("Hp: " ++ show (max playerHp 0))
+          (translate 30 280 . color white . scale 0.15 0.15 . text) ("Hp: " ++ show (max playerHp 0)),
+          (translate 370 280 . color white . scale 0.15 0.15 . text) ("Time: " ++ take 5 (show timeElapsed))
          ] ++ drawPUs activePUs
 
 -- Get the text to display when game is paused (differs depending on if game has been started yet)
@@ -72,7 +73,7 @@ drawPuInfo Sprites{hpPowerUp, speedPowerUp, frPowerUp, invincPowerUp} = [
   (translate 180 (-80) . scale 1.3 1.3) invincPowerUp,
   (translate 210 35 . color white . scale 0.1 0.1 . text) "Replenishes 50 hp",
   (translate 210 (-5) . color white . scale 0.1 0.1 . text) "Increases speed by 20% for 5 seconds",
-  (translate 210 (-45) . color white . scale 0.1 0.1 . text) "Increases fire rate by 50% for 5 seconds",
+  (translate 210 (-45) . color white . scale 0.1 0.1 . text) "Unlimited fire rate for 5 seconds",
   (translate 210 (-85) . color white . scale 0.1 0.1 . text) "Grants invincibility for 5 seconds"
   ]
 
